@@ -366,3 +366,6 @@ class AbstractFileSystem(Protocol):
 
     def rm(self, path: str, *, recursive: bool = False) -> None:
         """Delete a file or directory."""
+
+    def glob(self, pattern: str) -> list[str]:
+        """List files in a directory that match a pattern."""

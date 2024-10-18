@@ -267,16 +267,14 @@ class Parameter(JSONLike):
         """
         if self._value_class is None:
             return val
-        method_name = source.get("value_class_method")
-        if method_name is not None:
+        if (method_name := source.get("value_class_method")) is not None:
             method = getattr(self._value_class, method_name)
         else:
             method = self._value_class
         return method(**val)
 
     def _force_value_class(self) -> type[ParameterValue] | None:
-        param_cls = self._value_class
-        if param_cls is None:
+        if (param_cls := self._value_class) is None:
             self._set_value_class()
             param_cls = self._value_class
         return param_cls
@@ -477,8 +475,7 @@ class SchemaInput(SchemaParameter):
                     f", default_value={self.labels[label]['default_value'].value!r}"
                 )
 
-            group = self.labels[label].get("group")
-            if group is not None:
+            if (group := self.labels[label].get("group")) is not None:
                 group_str = f", group={group!r}"
 
         else:
@@ -497,8 +494,7 @@ class SchemaInput(SchemaParameter):
         dct = super()._postprocess_to_dict(d)
         v: dict[str, ParameterPropagationMode]
         for k, v in dct["labels"].items():
-            prop_mode = v.get("parameter_propagation_mode")
-            if prop_mode:
+            if (prop_mode := v.get("parameter_propagation_mode")) is not None:
                 dct["labels"][k]["parameter_propagation_mode"] = prop_mode.name
         return dct
 
@@ -552,8 +548,7 @@ class SchemaInput(SchemaParameter):
         """
         The default value of the input.
         """
-        single_data = self.single_labelled_data
-        if single_data:
+        if (single_data := self.single_labelled_data):
             if "default_value" in single_data:
                 return single_data["default_value"]
             else:
@@ -598,8 +593,7 @@ class SchemaInput(SchemaParameter):
         """
         The value of this input, assuming it is not mulitple.
         """
-        label = self.single_label
-        if label is not None:
+        if (label := self.single_label) is not None:
             return self.labels[label]
         return None
 
@@ -1068,8 +1062,7 @@ class ValueSequence(JSONLike):
         if self._workflow:
             return self._workflow
         elif self._element_set:
-            tmpl = self._element_set.task_template.workflow_template
-            if tmpl:
+            if (tmpl := self._element_set.task_template.workflow_template):
                 return tmpl.workflow
         return None
 
@@ -1081,8 +1074,7 @@ class ValueSequence(JSONLike):
         if self._values_group_idx is not None:
             vals: list[Any] = []
             for idx, pg_idx_i in enumerate(self._values_group_idx):
-                w = self.workflow
-                if not w:
+                if not (w := self.workflow):
                     continue
                 param_i = w.get_parameter(pg_idx_i)
                 if param_i.data is not None:
@@ -1435,15 +1427,12 @@ class AbstractInputValue(JSONLike):
         """
         if self._workflow:
             return self._workflow
-        elif self._element_set:
-            w_tmpl = self._element_set.task_template.workflow_template
-            if w_tmpl:
+        if self._element_set:
+            if (w_tmpl := self._element_set.task_template.workflow_template):
                 return w_tmpl.workflow
         if self._schema_input:
-            t_tmpl = self._schema_input.task_schema.task_template
-            if t_tmpl:
-                w_tmpl = t_tmpl.workflow_template
-                if w_tmpl:
+            if (t_tmpl := self._schema_input.task_schema.task_template):
+                if (w_tmpl := t_tmpl.workflow_template):
                     return w_tmpl.workflow
         return None
 

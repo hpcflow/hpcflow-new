@@ -86,8 +86,7 @@ def get_config_CLI(app: BaseApp) -> click.Group:
     pass_config = click.make_pass_decorator(Config)
 
     def find_config(ctx: click.Context) -> Config:
-        cfg = ctx.find_object(Config)
-        if cfg is None:
+        if (cfg := ctx.find_object(Config)) is None:
             raise RuntimeError("no configuration defined")
         return cfg
 

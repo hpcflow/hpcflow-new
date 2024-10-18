@@ -35,7 +35,7 @@ from hpcflow.sdk.core.errors import (
 from hpcflow.sdk.log import TimeIt
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
+    from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
     from contextlib import AbstractContextManager
     from types import ModuleType
     from typing import Any, IO
@@ -67,7 +67,7 @@ def get_time_stamp() -> str:
     return datetime.now(timezone.utc).astimezone().strftime("%Y.%m.%d_%H:%M:%S_%z")
 
 
-def get_duplicate_items(lst: Sequence[T]) -> list[T]:
+def get_duplicate_items(lst: Iterable[T]) -> list[T]:
     """Get a list of all items in an iterable that appear more than once, assuming items
     are hashable.
 
@@ -200,23 +200,24 @@ def swap_nested_dict_keys(dct: dict[T, dict[T2, T3]], inner_key: T2):
     return out
 
 
-def _ensure_int(path_comp: int, cur_data, cast_indices: bool) -> int:
+def _ensure_int(path_comp: Any, cur_data: Any, cast_indices: bool) -> int:
     """
     Helper for get_in_container() and set_in_container()
     """
-    if not isinstance(path_comp, int):
-        msg = (
+    if isinstance(path_comp, int):
+        return path_comp
+    if not cast_indices:
+        raise TypeError(
             f"Path component {path_comp!r} must be an integer index "
             f"since data is a sequence: {cur_data!r}."
         )
-        if cast_indices:
-            try:
-                path_comp = int(path_comp)
-            except (TypeError, ValueError) as e:
-                raise TypeError(msg) from e
-        else:
-            raise TypeError(msg)
-    return path_comp
+    try:
+        return int(path_comp)
+    except (TypeError, ValueError) as e:
+        raise TypeError(
+            f"Path component {path_comp!r} must be an integer index "
+            f"since data is a sequence: {cur_data!r}."
+        ) from e
 
 
 def get_in_container(
@@ -318,14 +319,8 @@ def get_relative_path(path1: Sequence[T], path2: Sequence[T]) -> Sequence[T]:
     """
 
     len_path2 = len(path2)
-    msg = f"{path1!r} is not in the subpath of {path2!r}."
-
-    if len(path1) < len_path2:
-        raise ValueError(msg)
-
-    for i, j in zip(path1[:len_path2], path2):
-        if i != j:
-            raise ValueError(msg)
+    if len(path1) < len_path2 or any(i != j for i, j in zip(path1[:len_path2], path2)):
+        raise ValueError(f"{path1!r} is not in the subpath of {path2!r}.")
 
     return path1[len_path2:]
 
@@ -380,14 +375,13 @@ def substitute_string_vars(string: str, variables: dict[str, str]):
     "abc 123 def"
     """
 
-    def var_repl(match_obj: re.Match):
+    def var_repl(match_obj: re.Match[str]) -> str:
         kwargs: dict[str, str] = {}
         var_name: str = match_obj[1]
         kwargs_str: str | None = match_obj[2]
         if kwargs_str:
-            kwargs_lst: list[str] = kwargs_str.split(",")
-            for i in kwargs_lst:
-                k, v = i.strip().split("=")
+            for i in kwargs_str.split(","):
+                k, v = i.split("=")
                 kwargs[k.strip()] = v.strip()
         try:
             out = str(variables[var_name])
@@ -457,9 +451,9 @@ def write_JSON_file(obj, path: str | Path) -> None:
 
 
 def get_item_repeat_index(
-    lst: Sequence[T],
+    lst: Sequence[T], *,
     distinguish_singular: bool = False,
-    item_callable: Callable[[T], Any] | None = None,
+    item_callable: Callable[[T], Hashable] | None = None,
 ):
     """Get the repeat index for each item in a list.
 
@@ -468,10 +462,10 @@ def get_item_repeat_index(
     lst : list
         Must contain hashable items, or hashable objects that are returned via `callable`
         called on each item.
-    distinguish_singular : bool, optional
+    distinguish_singular : bool
         If True, items that are not repeated will have a repeat index of 0, and items that
         are repeated will have repeat indices starting from 1.
-    item_callable : callable, optional
+    item_callable : callable
         If specified, comparisons are made on the output of this callable on each item.
 
     Returns
@@ -482,8 +476,12 @@ def get_item_repeat_index(
     """
 
     idx: dict[Any, list[int]] = {}
-    for i_idx, item in enumerate(lst):
-        idx.setdefault(item_callable(item) if item_callable else item, []).append(i_idx)
+    if item_callable:
+        for i_idx, item in enumerate(lst):
+            idx.setdefault(item_callable(item), []).append(i_idx)
+    else:
+        for i_idx, item in enumerate(lst):
+            idx.setdefault(item, []).append(i_idx)
 
     rep_idx = [0] * len(lst)
     for v in idx.values():
@@ -706,36 +704,41 @@ def reshape(lst: Sequence[T], lens: Sequence[Sequence[int]]) -> list[TList[T]]:
 
 
 @overload
-def remap(a: list[int], b: Callable[[Sequence[int]], Sequence[T]]) -> list[T]:
+def remap(lst: list[int], mapping_func: Callable[[Sequence[int]], Sequence[T]]) -> list[T]:
     ...
 
 
 @overload
-def remap(a: list[list[int]], b: Callable[[Sequence[int]], Sequence[T]]) -> list[list[T]]:
+def remap(lst: list[list[int]], mapping_func: Callable[[Sequence[int]], Sequence[T]]) -> list[list[T]]:
     ...
 
 
 @overload
 def remap(
-    a: list[list[list[int]]], b: Callable[[Sequence[int]], Sequence[T]]
+    lst: list[list[list[int]]], mapping_func: Callable[[Sequence[int]], Sequence[T]]
 ) -> list[list[list[T]]]:
     ...
 
 
-def remap(a, b):
+def remap(lst, mapping_func):
     """
-    Apply a mapping to a structure of lists with ints as leaves to get a
-    structure of lists with some objects as leaves.
+    Apply a mapping to a structure of lists with ints (typically indices) as leaves to
+    get a structure of lists with some objects as leaves.
 
     Parameters
     ----------
-    a: list[int]
+    lst: list[int] | list[list[int]] | list[list[list[int]]]
         The structure to remap.
-    b: Callable
+    mapping_func: Callable[[Sequence[int]], Sequence[T]]
         The mapping function from sequences of ints to sequences of objects.
+
+    Returns
+    -------
+    list[T] | list[list[T]] | list[list[list[T]]]
+        Nested list structure in same form as input, with leaves remapped.
     """
-    x, y = flatten(a)
-    return reshape(b(x), y)
+    x, y = flatten(lst)
+    return reshape(mapping_func(x), y)
 
 
 _FSSPEC_URL_RE = re.compile(r"(?:[a-z0-9]+:{1,2})+\/\/")
@@ -791,16 +794,15 @@ class JSONLikeDirSnapShot(DirectorySnapshot):
         `self._inode_to_path`.
 
         """
-
         # first key is the root path:
         root_path = next(iter(self._stat_info.keys()))
 
         # store efficiently:
         inode_invert = {v: k for k, v in self._inode_to_path.items()}
-        data: dict[str, list] = {}
-        for k, v in self._stat_info.items():
-            k_rel = str(PurePath(k).relative_to(root_path))
-            data[k_rel] = list(v) + list(inode_invert[k])
+        data: dict[str, list] = {
+            str(PurePath(k).relative_to(root_path)): [*v, *inode_invert[k]]
+            for k, v in self._stat_info.items()
+        }
 
         return {
             "root_path": root_path,
@@ -831,7 +833,6 @@ def get_enum_by_name_or_val(
     enum_cls: type[E], key: str | int | float | E | None
 ) -> E | None:
     """Retrieve an enum by name or value, assuming uppercase names and integer values."""
-    err = f"Unknown enum key or value {key!r} for class {enum_cls!r}"
     if key is None or isinstance(key, enum_cls):
         return key
     elif isinstance(key, (int, float)):
@@ -840,9 +841,8 @@ def get_enum_by_name_or_val(
         try:
             return cast(E, getattr(enum_cls, key.upper()))  # retrieve by name
         except AttributeError:
-            raise ValueError(err)
-    else:
-        raise ValueError(err)
+            pass
+    raise ValueError(f"Unknown enum key or value {key!r} for class {enum_cls!r}")
 
 
 _PARAM_SPLIT_RE = re.compile(r"((?:\w|\.)+)(?:\[(\w+)\])?")
@@ -850,10 +850,10 @@ _PARAM_SPLIT_RE = re.compile(r"((?:\w|\.)+)(?:\[(\w+)\])?")
 
 def split_param_label(param_path: str) -> tuple[str, str] | tuple[None, None]:
     """Split a parameter path into the path and the label, if present."""
-    match = _PARAM_SPLIT_RE.match(param_path)
-    if not match:
+    if (match := _PARAM_SPLIT_RE.match(param_path)):
+        return match[1], match[2]
+    else:
         return None, None
-    return match[1], match[2]
 
 
 def process_string_nodes(data: T, str_processor: Callable[[str], str]) -> T:

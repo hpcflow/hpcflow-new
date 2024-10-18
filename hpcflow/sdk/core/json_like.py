@@ -344,8 +344,7 @@ class BaseJSONLike:
 
     @classmethod
     def _class_namespace(cls) -> dict[str, Any] | SimpleNamespace | BaseApp:
-        ns = cls.__class_namespace
-        if ns is None:
+        if (ns := cls.__class_namespace) is None:
             raise ValueError(f"`{cls.__name__}` `class_namespace` must be set!")
         return ns
 
@@ -694,7 +693,7 @@ class BaseJSONLike:
         """
         if dct is None:
             dct_value = {
-                k: v for k, v in self.to_dict().items() if k not in (exclude or [])
+                k: v for k, v in self.to_dict().items() if k not in (exclude or ())
             }
         else:
             dct_value = dct
@@ -720,7 +719,7 @@ class BaseJSONLike:
         json_like: dict[str, JSONed] | list[JSONed] = cast("Any", json_like_)
         shared_data = shared_data or {}
 
-        for chd in self._child_objects or []:
+        for chd in self._child_objects or ():
             assert chd.json_like_name is not None
             if chd.name in json_like:
                 assert isinstance(json_like, dict)

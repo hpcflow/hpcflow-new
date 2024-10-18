@@ -18,6 +18,7 @@ import psutil
 from .watcher import MonitorController
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from hpcflow.sdk.app import BaseApp
 
 
@@ -27,12 +28,23 @@ DEFAULT_WATCH_INTERVAL = 10  # seconds
 
 
 def kill_proc_tree(
-    pid: int, sig=signal.SIGTERM, include_parent=True, timeout=None, on_terminate=None
-):
+    pid: int,
+    sig=signal.SIGTERM,
+    include_parent: bool = True,
+    timeout: float | None = None,
+    on_terminate: Callable[[psutil.Process], object] | None = None
+) -> tuple[list[psutil.Process], list[psutil.Process]]:
     """Kill a process tree (including grandchildren) with signal
-    "sig" and return a (gone, still_alive) tuple.
-    "on_terminate", if specified, is a callback function which is
+    `sig` and return a (gone, still_alive) tuple.
+    `on_terminate`, if specified, is a callback function which is
     called as soon as a child terminates.
+
+    Returns
+    -------
+    list[Process]:
+        The process and subprocesses that have died.
+    list[Process]:
+        The process and subprocesses that are still alive.
     """
     assert pid != os.getpid(), "won't kill myself"
     parent = psutil.Process(pid)
@@ -44,8 +56,7 @@ def kill_proc_tree(
             p.send_signal(sig)
         except psutil.NoSuchProcess:
             pass
-    gone, alive = psutil.wait_procs(children, timeout=timeout, callback=on_terminate)
-    return (gone, alive)
+    return psutil.wait_procs(children, timeout=timeout, callback=on_terminate)
 
 
 def get_PID_file_path(app: BaseApp) -> Path:
@@ -65,10 +76,10 @@ def get_helper_log_path(app: BaseApp) -> Path:
 
 def get_helper_watch_list(app: BaseApp):
     """Get the list of workflows currently being watched by the helper process."""
-    logger = get_helper_logger(app)
     watch_file_path = get_watcher_file_path(app)
     if watch_file_path.exists():
-        return MonitorController.parse_watch_workflows_file(watch_file_path, logger)
+        return MonitorController.parse_watch_workflows_file(
+            watch_file_path, get_helper_logger(app))
     return None
 
 
@@ -171,8 +182,7 @@ def stop_helper(app: BaseApp, return_logger: bool = False):
     Stop the helper process.
     """
     logger = get_helper_logger(app)
-    pid_info = get_helper_PID(app)
-    if pid_info:
+    if (pid_info := get_helper_PID(app)):
         logger.info("Stopping helper.")
         pid, pid_file = pid_info
         kill_proc_tree(pid=pid)
@@ -192,8 +202,7 @@ def clear_helper(app: BaseApp):
     try:
         stop_helper(app)
     except psutil.NoSuchProcess:
-        pid_info = get_helper_PID(app)
-        if pid_info:
+        if (pid_info := get_helper_PID(app)):
             pid_file = pid_info[1]
             print(f"Removing file {pid_file!r}")
             pid_file.unlink()
@@ -203,13 +212,11 @@ def get_helper_uptime(app: BaseApp) -> None | timedelta:
     """
     Get the amount of time that the helper has been running.
     """
-    pid_info = get_helper_PID(app)
-    if not pid_info:
+    if not (pid_info := get_helper_PID(app)):
         return None
     proc = psutil.Process(pid_info[0])
     create_time = datetime.fromtimestamp(proc.create_time())
-    uptime = datetime.now() - create_time
-    return uptime
+    return datetime.now() - create_time
 
 
 def get_helper_logger(app: BaseApp) -> logging.Logger:
@@ -236,8 +243,7 @@ def helper_timeout(
     """Kill the helper due to running duration exceeding the timeout."""
 
     logger.info(f"Helper exiting due to timeout ({timeout!r}).")
-    pid_info = get_helper_PID(app)
-    if pid_info:
+    if (pid_info := get_helper_PID(app)):
         pid_file = pid_info[1]
         logger.info(f"Deleting PID file: {pid_file!r}.")
         pid_file.unlink()

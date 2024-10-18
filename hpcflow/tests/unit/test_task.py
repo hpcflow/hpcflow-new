@@ -2365,14 +2365,14 @@ def path_to_PV_classes_workflow(null_config, tmp_path: Path) -> Workflow:
 
 
 def test_path_to_PV_classes(path_to_PV_classes_workflow: Workflow):
-    assert path_to_PV_classes_workflow.tasks.t1._paths_to_PV_classes(["inputs.p1c"]) == {
+    assert path_to_PV_classes_workflow.tasks.t1._paths_to_PV_classes("inputs.p1c") == {
         "inputs.p1c": P1,
     }
 
 
 def test_path_to_PV_classes_sub_data(path_to_PV_classes_workflow: Workflow):
     assert path_to_PV_classes_workflow.tasks.t1._paths_to_PV_classes(
-        ["inputs.p1c.a"]
+        "inputs.p1c.a"
     ) == {
         "inputs.p1c": P1,
     }
@@ -2380,7 +2380,7 @@ def test_path_to_PV_classes_sub_data(path_to_PV_classes_workflow: Workflow):
 
 def test_path_to_PV_classes_sub_parameter(path_to_PV_classes_workflow: Workflow):
     assert path_to_PV_classes_workflow.tasks.t1._paths_to_PV_classes(
-        ["inputs.p1c.sub_param"]
+        "inputs.p1c.sub_param"
     ) == {
         "inputs.p1c": P1,
         "inputs.p1c.sub_param": P1_sub_param,
@@ -2391,7 +2391,7 @@ def test_path_to_PV_classes_multiple_sub_parameters(
     path_to_PV_classes_workflow: Workflow,
 ):
     paths = ["inputs.p1c.sub_param", "inputs.p1c.sub_param_2"]
-    assert path_to_PV_classes_workflow.tasks.t1._paths_to_PV_classes(paths) == {
+    assert path_to_PV_classes_workflow.tasks.t1._paths_to_PV_classes(*paths) == {
         "inputs.p1c": P1,
         "inputs.p1c.sub_param": P1_sub_param,
         "inputs.p1c.sub_param_2": P1_sub_param_2,
@@ -2402,7 +2402,7 @@ def test_path_to_PV_classes_multiple_sub_parameter_attr(
     path_to_PV_classes_workflow: Workflow,
 ):
     paths = ["inputs.p1c.sub_param.e"]
-    assert path_to_PV_classes_workflow.tasks.t1._paths_to_PV_classes(paths) == {
+    assert path_to_PV_classes_workflow.tasks.t1._paths_to_PV_classes(*paths) == {
         "inputs.p1c": P1,
         "inputs.p1c.sub_param": P1_sub_param,
     }
@@ -2414,16 +2414,16 @@ def test_path_to_PV_classes_inputs_only_path_ignored(
     paths_1 = ["inputs", "inputs.p1c"]
     paths_2 = ["inputs.p1c"]
     assert path_to_PV_classes_workflow.tasks.t1._paths_to_PV_classes(
-        paths_1
-    ) == path_to_PV_classes_workflow.tasks.t1._paths_to_PV_classes(paths_2)
+        *paths_1
+    ) == path_to_PV_classes_workflow.tasks.t1._paths_to_PV_classes(*paths_2)
 
 
 def test_path_to_PV_classes_resources_path_ignored(path_to_PV_classes_workflow: Workflow):
     paths_1 = ["resources", "inputs.p1c"]
     paths_2 = ["inputs.p1c"]
     assert path_to_PV_classes_workflow.tasks.t1._paths_to_PV_classes(
-        paths_1
-    ) == path_to_PV_classes_workflow.tasks.t1._paths_to_PV_classes(paths_2)
+        *paths_1
+    ) == path_to_PV_classes_workflow.tasks.t1._paths_to_PV_classes(*paths_2)
 
 
 def test_input_values_specified_by_dict(null_config):

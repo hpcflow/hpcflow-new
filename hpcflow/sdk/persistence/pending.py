@@ -10,7 +10,7 @@ from dataclasses import dataclass, field, fields
 from datetime import datetime
 
 from logging import Logger
-from typing import Any, Dict, Generic, TYPE_CHECKING
+from typing import Any, Generic, TYPE_CHECKING
 
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.persistence.types import (
@@ -89,7 +89,7 @@ class PendingChanges(
         #: Workflow-related files (inputs, outputs) added to the persistent store.
         self.add_files: list[FileDescriptor] = []
         #: Template components to add.
-        self.add_template_components: dict[str, dict[str, Dict]] = {}
+        self.add_template_components: dict[str, dict[str, dict]] = {}
         #: Keys are element set IDs, values are descriptors.
         self.add_element_sets: dict[int, list[Mapping]] = {}
 

@@ -926,8 +926,7 @@ def _make_open_CLI(app: BaseApp):
     @click.option("--path", is_flag=True, default=False)
     def env_source(name: str | None = None, path: bool = False):
         """Open a named environment sources file, or the first one."""
-        sources = app.config.environment_sources
-        if not sources:
+        if not (sources := app.config.environment_sources):
             raise ValueError("No environment sources specified in the config file.")
         if not name:
             file_paths = [sources[0]]

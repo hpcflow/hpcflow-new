@@ -256,14 +256,12 @@ class RunTimeInfo:
         name.
 
         """
-        p = self.executable_path
-        return None if p is None else p.name
+        return None if (p := self.executable_path) is None else p.name
 
     @property
     def resolved_executable_name(self) -> str | None:
         """Get the resolved name of the frozen app executable, if the app is frozen."""
-        p = self.resolved_executable_path
-        return None if p is None else p.name
+        return None if (p := self.resolved_executable_path) is None else p.name
 
     @property
     def script_path(self) -> Path | None:
@@ -275,8 +273,7 @@ class RunTimeInfo:
     def resolved_script_path(self) -> Path | None:
         """Get the resolved path to the Python script used to invoked this instance of the
         app, if the app is not frozen."""
-        p = self.script_path
-        return None if p is None else p.resolve()
+        return None if (p := self.script_path) is None else p.resolve()
 
     @property
     def invocation_command(self) -> tuple[str, ...]:

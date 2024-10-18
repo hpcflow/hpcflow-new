@@ -341,7 +341,7 @@ class ElementSet(JSONLike):
     @property
     def element_local_idx_range(self) -> tuple[int, ...]:
         """Indices of elements belonging to this element set."""
-        return tuple(self._element_local_idx_range or [])
+        return tuple(self._element_local_idx_range or ())
 
     @classmethod
     def __decode_inputs(
@@ -385,25 +385,23 @@ class ElementSet(JSONLike):
                 raise MalformedNestingOrderPath(k, self._ALLOWED_NESTING_PATHS)
 
         inp_paths = [in_.normalised_inputs_path for in_ in self.inputs]
-        dup_inp_paths = get_duplicate_items(inp_paths)
-        if dup_inp_paths:
+        if (dup_paths := get_duplicate_items(inp_paths)):
             raise TaskTemplateMultipleInputValues(
                 f"The following inputs parameters are associated with multiple input value "
-                f"definitions: {dup_inp_paths!r}."
+                f"definitions: {dup_paths!r}."
             )
 
         inp_seq_paths = [
-            seq.normalised_inputs_path for seq in self.sequences if seq.input_type
+            cast(str, seq.normalised_inputs_path)
+            for seq in self.sequences if seq.input_type
         ]
-        dup_inp_seq_paths = get_duplicate_items(inp_seq_paths)
-        if dup_inp_seq_paths:
+        if (dup_paths := get_duplicate_items(inp_seq_paths)):
             raise TaskTemplateMultipleInputValues(
                 f"The following input parameters are associated with multiple sequence "
-                f"value definitions: {dup_inp_seq_paths!r}."
+                f"value definitions: {dup_paths!r}."
             )
 
-        inp_and_seq = set(inp_paths).intersection(inp_seq_paths)
-        if inp_and_seq:
+        if (inp_and_seq := set(inp_paths).intersection(inp_seq_paths)):
             raise TaskTemplateMultipleInputValues(
                 f"The following input parameters are specified in both the `inputs` and "
                 f"`sequences` lists: {list(inp_and_seq)!r}, but must be specified in at "
@@ -423,14 +421,12 @@ class ElementSet(JSONLike):
 
     def _validate_against_template(self) -> None:
         expected_types = self.task_template.all_schema_input_types
-        unexpected_types = set(self.input_types) - expected_types
-        if unexpected_types:
+        if (unexpected_types := set(self.input_types) - expected_types):
             raise TaskTemplateUnexpectedInput(unexpected_types)
 
         defined_inp_types = set(self.input_types)
         for seq in self.sequences:
-            inp_type = seq.labelled_type
-            if inp_type:
+            if (inp_type := seq.labelled_type):
                 if inp_type not in expected_types:
                     raise TaskTemplateUnexpectedSequenceInput(
                         inp_type, expected_types, seq
@@ -440,8 +436,7 @@ class ElementSet(JSONLike):
                 self.nesting_order[seq.path] = seq.nesting_order
 
         for rep_spec in self.repeats:
-            reps_path_i = f'repeats.{rep_spec["name"]}'
-            if reps_path_i not in self.nesting_order:
+            if (reps_path_i := f'repeats.{rep_spec["name"]}') not in self.nesting_order:
                 self.nesting_order[reps_path_i] = rep_spec["nesting_order"]
 
         for k, v in self.nesting_order.items():
@@ -482,9 +477,8 @@ class ElementSet(JSONLike):
             env_preset,
             environments,
         )
-        args_not_none = [i is not None for i in args]
 
-        if any(args_not_none):
+        if any(i is not None for i in args):
             if element_sets is not None:
                 raise ValueError(
                     "If providing an `element_set`, no other arguments are allowed."
@@ -874,7 +868,7 @@ class Task(JSONLike):
                     # change to a resources path:
                     seq.path = "resources.any.environments"
                     _values = []
-                    for val in seq.values or []:
+                    for val in seq.values or ():
                         try:
                             _values.append(env_presets[val])  # type: ignore[index]
                         except (TypeError, KeyError) as e:
@@ -1006,12 +1000,12 @@ class Task(JSONLike):
             distinguish_singular=True,
         )
 
-        names: list[str] = []
-        for idx, task in enumerate(tasks):
-            add_rep = f"_{task_name_rep_idx[idx]}" if task_name_rep_idx[idx] > 0 else ""
-            names.append(f"{task.name}{add_rep}")
-
-        return names
+        return [
+            f"{task.name}_{task_name_rep_idx[idx]}"
+            if task_name_rep_idx[idx] > 0
+            else task.name
+            for idx, task in enumerate(tasks)
+        ]
 
     @TimeIt.decorator
     def _prepare_persistent_outputs(
@@ -1027,18 +1021,17 @@ class Task(JSONLike):
                 # TODO: consider multiple schemas in action index?
 
                 path = f"outputs.{output.typ}"
-                output_data_indices[path] = []
-                for idx in range(*local_element_idx_range):
+                output_data_indices[path] = [
                     # iteration_idx, action_idx, and EAR_idx are not known until
                     # `initialise_EARs`:
-                    param_src: ParamSource = {
+                    workflow._add_unset_parameter_data({
                         "type": "EAR_output",
                         # "task_insert_ID": self.insert_ID,
                         # "element_idx": idx,
                         # "run_idx": 0,
-                    }
-                    data_ref = workflow._add_unset_parameter_data(param_src)
-                    output_data_indices[path].append(data_ref)
+                    })
+                    for idx in range(*local_element_idx_range)
+                ]
 
         return output_data_indices
 
@@ -1138,8 +1131,8 @@ class Task(JSONLike):
             raise NoAvailableElementSetsError()
 
         src_elem_iters: list[int] = []
-        for es_idx_i in es_idx:
-            es_i = src_task.element_sets[es_idx_i]
+        for es_i_idx in es_idx:
+            es_i = src_task.element_sets[es_i_idx]
             src_elem_iters += es_i.elem_iter_IDs  # should be sorted already
 
         if element_set.sourceable_elem_iters is not None:
@@ -1544,22 +1537,18 @@ class Task(JSONLike):
         outputs, considering all element sets.
 
         """
-        out: list[tuple[str, str]] = []
+        out: dict[tuple[str, str], None] = {}
         for schema in self.schemas:
-            out.extend(schema.provides_parameters)
+            out.update(dict.fromkeys(schema.provides_parameters))
 
         # add sub-parameter input values and sequences:
         for es_i in self.element_sets:
             for inp_j in es_i.inputs:
                 if inp_j.is_sub_value:
-                    val_j = ("input", inp_j.normalised_inputs_path)
-                    if val_j not in out:
-                        out.append(val_j)
+                    out["input", inp_j.normalised_inputs_path] = None
             for seq_j in es_i.sequences:
-                if seq_j.is_sub_value and seq_j.normalised_inputs_path is not None:
-                    val_j = ("input", seq_j.normalised_inputs_path)
-                    if val_j not in out:
-                        out.append(val_j)
+                if seq_j.is_sub_value and (path := seq_j.normalised_inputs_path):
+                    out["input", path] = None
 
         return tuple(out)
 
@@ -1833,6 +1822,7 @@ class WorkflowTask(AppAware):
                 ).template.element_sets[k_es_idx]
                 if any(inp_group_name == i.name for i in k_es.groups):
                     group_dat_idx.append(dat_idx)
+                    break
 
             # TODO: this only goes to one level of dependency
 
@@ -1914,9 +1904,7 @@ class WorkflowTask(AppAware):
         # Now check for task- and default-sources and overwrite or append to local sources:
         inp_stats = self.template.get_input_statuses(element_set)
         for labelled_path_i, sources_i in element_set.input_sources.items():
-            path_i_split = labelled_path_i.split(".")
-            is_path_i_sub = len(path_i_split) > 1
-            if is_path_i_sub:
+            if len(path_i_split := labelled_path_i.split(".")) > 1:
                 path_i_root = path_i_split[0]
             else:
                 path_i_root = labelled_path_i
@@ -2014,11 +2002,8 @@ class WorkflowTask(AppAware):
         for path_i, avail_i in available_sources.items():
             # for each sub-path in available sources, if the "root-path" source is
             # required, then add the sub-path source to `req_types` as well:
-            path_i_split = path_i.split(".")
-            is_path_i_sub = len(path_i_split) > 1
-            if is_path_i_sub:
-                path_i_root = path_i_split[0]
-                if path_i_root in req_types:
+            if len(path_i_split := path_i.split(".")) > 1:
+                if path_i_split[0] in req_types:
                     req_types.add(path_i)
 
             for s_idx, specified_source in enumerate(
@@ -2066,8 +2051,7 @@ class WorkflowTask(AppAware):
         # missing sources below:
         unsourced_inputs = sorted(req_types - set(element_set.input_sources.keys()))
 
-        extra_types = set(k for k, v in all_stats.items() if v.is_extra)
-        if extra_types:
+        if (extra_types := {k for k, v in all_stats.items() if v.is_extra}):
             extra_str = ", ".join(f"{i!r}" for i in extra_types)
             raise ExtraInputs(
                 message=(
@@ -2641,22 +2625,7 @@ class WorkflowTask(AppAware):
             propagate_to, self.workflow
         )
         with self.workflow.batch_update():
-            if return_indices:
-                return self._add_elements(
-                    base_element=base_element,
-                    inputs=inputs,
-                    input_files=input_files,
-                    sequences=sequences,
-                    resources=resources,
-                    repeats=repeats,
-                    input_sources=input_sources,
-                    nesting_order=nesting_order,
-                    element_sets=element_sets,
-                    sourceable_elem_iters=sourceable_elem_iters,
-                    propagate_to=real_propagate_to,
-                    return_indices=True,
-                )
-            self._add_elements(
+            indices = self._add_elements(
                 base_element=base_element,
                 inputs=inputs,
                 input_files=input_files,
@@ -2668,47 +2637,8 @@ class WorkflowTask(AppAware):
                 element_sets=element_sets,
                 sourceable_elem_iters=sourceable_elem_iters,
                 propagate_to=real_propagate_to,
-                return_indices=False,
             )
-        return None
-
-    @overload
-    def _add_elements(
-        self,
-        *,
-        base_element: Element | None = None,
-        inputs: list[InputValue] | dict[str, Any] | None = None,
-        input_files: list[InputFile] | None = None,
-        sequences: list[ValueSequence] | None = None,
-        resources: dict[str, dict] | list | None = None,
-        repeats: list[RepeatsDescriptor] | int | None = None,
-        input_sources: dict[str, list[InputSource]] | None = None,
-        nesting_order: dict[str, float] | None = None,
-        element_sets: list[ElementSet] | None = None,
-        sourceable_elem_iters: list[int] | None = None,
-        propagate_to: dict[str, ElementPropagation] | None = None,
-        return_indices: Literal[False] = False,
-    ) -> None:
-        ...
-
-    @overload
-    def _add_elements(
-        self,
-        *,
-        base_element: Element | None = None,
-        inputs: list[InputValue] | dict[str, Any] | None = None,
-        input_files: list[InputFile] | None = None,
-        sequences: list[ValueSequence] | None = None,
-        resources: dict[str, dict] | list | None = None,
-        repeats: list[RepeatsDescriptor] | int | None = None,
-        input_sources: dict[str, list[InputSource]] | None = None,
-        nesting_order: dict[str, float] | None = None,
-        element_sets: list[ElementSet] | None = None,
-        sourceable_elem_iters: list[int] | None = None,
-        propagate_to: dict[str, ElementPropagation] | None = None,
-        return_indices: Literal[True],
-    ) -> list[int]:
-        ...
+        return indices if return_indices else None
 
     @TimeIt.decorator
     def _add_elements(
@@ -2724,23 +2654,18 @@ class WorkflowTask(AppAware):
         nesting_order: dict[str, float] | None = None,
         element_sets: list[ElementSet] | None = None,
         sourceable_elem_iters: list[int] | None = None,
-        propagate_to: dict[str, ElementPropagation] | None = None,
-        return_indices: bool = False,
+        propagate_to: dict[str, ElementPropagation] | None = None
     ) -> list[int] | None:
         """Add more elements to this task.
 
         Parameters
         ----------
-        sourceable_elem_iters : list of int, optional
+        sourceable_elem_iters : list[int]
             If specified, a list of global element iteration indices from which inputs
             may be sourced. If not specified, all workflow element iterations are
             considered sourceable.
-        propagate_to : dict of [str, ElementPropagation]
+        propagate_to : dict[str, ElementPropagation]
             Propagate the new elements downstream to the specified tasks.
-        return_indices : bool, optional
-            If True, return the list of indices of the newly added elements. False by
-            default.
-
         """
 
         if base_element is not None:
@@ -2764,24 +2689,20 @@ class WorkflowTask(AppAware):
 
         elem_idx: list[int] = []
         for elem_set_i in element_sets:
-            # copy:
-            elem_set_i = elem_set_i.prepare_persistent_copy()
+            # copy and add the new element set:
+            elem_idx += self._add_element_set(elem_set_i.prepare_persistent_copy())
 
-            # add the new element set:
-            elem_idx += self._add_element_set(elem_set_i)
+        if not propagate_to:
+            return elem_idx
 
         for task in self.get_dependent_tasks(as_objects=True):
-            if not propagate_to:
-                continue
-            elem_prop = propagate_to.get(task.unique_name)
-            if elem_prop is None:
+            if (elem_prop := propagate_to.get(task.unique_name)) is None:
                 continue
 
-            task_dep_names = [
-                i.unique_name
+            if all(
+                self.unique_name != i.unique_name
                 for i in elem_prop.element_set.get_task_dependencies(as_objects=True)
-            ]
-            if self.unique_name not in task_dep_names:
+            ):
                 # TODO: why can't we just do
                 #  `if self in not elem_propagate.element_set.task_dependencies:`?
                 continue
@@ -2790,7 +2711,7 @@ class WorkflowTask(AppAware):
             #       Assume for now we use a single base element set.
             #       Later, allow combining multiple element sets.
             src_elem_iters = elem_idx + [
-                j for i in element_sets for j in i.sourceable_elem_iters or []
+                j for i in element_sets for j in i.sourceable_elem_iters or ()
             ]
 
             # note we must pass `resources` as a list since it is already persistent:
@@ -2808,15 +2729,11 @@ class WorkflowTask(AppAware):
             del propagate_to[task.unique_name]
             prop_elem_idx = task._add_elements(
                 element_sets=[elem_set_i],
-                return_indices=True,
                 propagate_to=propagate_to,
             )
-            elem_idx.extend(prop_elem_idx)
+            elem_idx.extend(prop_elem_idx or ())
 
-        if return_indices:
-            return elem_idx
-        else:
-            return None
+        return elem_idx
 
     @overload
     def get_element_dependencies(
@@ -2850,7 +2767,6 @@ class WorkflowTask(AppAware):
         deps = sorted(deps_set)
         if as_objects:
             return self.workflow.get_elements_from_IDs(deps)
-
         return deps
 
     @overload
@@ -2987,13 +2903,16 @@ class WorkflowTask(AppAware):
         )
 
     def _paths_to_PV_classes(
-        self, paths: Iterable[str]
+        self, *paths: str | None
     ) -> dict[str, type[ParameterValue]]:
         """Return a dict mapping dot-delimited string input paths to `ParameterValue`
         classes."""
 
         params: dict[str, type[ParameterValue]] = {}
         for path in paths:
+            if not path:
+                # Skip None/empty
+                continue
             path_split = path.split(".")
             if len(path_split) == 1 or path_split[0] not in ("inputs", "outputs"):
                 continue
@@ -3021,7 +2940,10 @@ class WorkflowTask(AppAware):
                                 params[key_0] = j2.parameter._value_class
 
             if path_split[2:]:
-                pv_classes = ParameterValue.__subclasses__()
+                pv_classes = {
+                    cls._typ: cls
+                    for cls in ParameterValue.__subclasses__()
+                }
 
             # now proceed by searching for sub-parameters in each ParameterValue
             # sub-class:
@@ -3031,15 +2953,12 @@ class WorkflowTask(AppAware):
                 key_i = ".".join(child)
                 if key_i in params:
                     continue
-                parent_param = params.get(".".join(parent))
-                if parent_param:
+                if (parent_param := params.get(".".join(parent))):
                     for attr_name, sub_type in parent_param._sub_parameters.items():
                         if part_i == attr_name:
                             # find the class with this `typ` attribute:
-                            for cls_i in pv_classes:
-                                if cls_i._typ == sub_type:
-                                    params[key_i] = cls_i
-                                    break
+                            if (cls := pv_classes.get(sub_type)):
+                                params[key_i] = cls
 
         return params
 
@@ -3272,14 +3191,12 @@ class WorkflowTask(AppAware):
                 if not assigned_from_parent:
                     # search for unset parents in `relevant_data`:
                     assert path is not None
-                    path_split = path.split(".")
-                    for parent_i_span in range(len(path_split) - 1, 1, -1):
+                    for parent_i_span in range(
+                            len(path_split := path.split(".")) - 1, 1, -1):
                         parent_path_i = ".".join(path_split[0:parent_i_span])
-                        relevant_par = relevant_data.get(parent_path_i)
-                        if not relevant_par:
+                        if not (relevant_par := relevant_data.get(parent_path_i)):
                             continue
-                        par_is_set = relevant_par["is_set"]
-                        if not par_is_set or any(not i for i in cast(list, par_is_set)):
+                        if not (par_is_set := relevant_par["is_set"]) or any(not i for i in cast(list, par_is_set)):
                             val_cls_method = relevant_par["value_class_method"]
                             path_is_multi = relevant_par["is_multi"]
                             path_is_set = relevant_par["is_set"]
@@ -3330,21 +3247,16 @@ class WorkflowTask(AppAware):
         default: Any | None = None,
     ):
         """Get element data from the persistent store."""
-
-        # TODO: custom exception?
-        missing_err = ValueError(f"Path {path!r} does not exist in the element data.")
-
         path_split = [] if not path else path.split(".")
-
-        relevant_paths = self.__get_relevant_paths(data_index, path_split)
-        if not relevant_paths:
+        
+        if not (relevant_paths := self.__get_relevant_paths(data_index, path_split)):
             if raise_on_missing:
-                raise missing_err
+                # TODO: custom exception?
+                raise ValueError(f"Path {path!r} does not exist in the element data.")
             return default
 
         relevant_data_idx = {k: v for k, v in data_index.items() if k in relevant_paths}
-        PV_cls_paths = list(relevant_paths.keys()) + ([path] if path else [])
-        PV_classes = self._paths_to_PV_classes(PV_cls_paths)
+        PV_classes = self._paths_to_PV_classes(*relevant_paths, path)
         relevant_data = self.__get_relevant_data(relevant_data_idx, raise_on_unset, path)
 
         current_val = None
@@ -3357,8 +3269,7 @@ class WorkflowTask(AppAware):
             path_to_init = err.path
             path_to_init_split = path_to_init.split(".")
             relevant_paths = self.__get_relevant_paths(data_index, path_to_init_split)
-            PV_cls_paths = list(relevant_paths.keys()) + [path_to_init]
-            PV_classes = self._paths_to_PV_classes(PV_cls_paths)
+            PV_classes = self._paths_to_PV_classes(*relevant_paths, path_to_init)
             relevant_data_idx = {
                 k: v for k, v in data_index.items() if k in relevant_paths
             }
@@ -3401,7 +3312,8 @@ class WorkflowTask(AppAware):
 
         if not is_assigned:
             if raise_on_missing:
-                raise missing_err
+                # TODO: custom exception?
+                raise ValueError(f"Path {path!r} does not exist in the element data.")
             current_val = default
 
         return current_val
@@ -3441,19 +3353,18 @@ class Elements:
     def _get_selection(self, selection: int | slice | list[int]) -> list[int]:
         """Normalise an element selection into a list of element indices."""
         if isinstance(selection, int):
-            lst = [selection]
+            return [selection]
 
         elif isinstance(selection, slice):
-            lst = list(range(*selection.indices(self.task.num_elements)))
+            return list(range(*selection.indices(self.task.num_elements)))
 
         elif isinstance(selection, list):
-            lst = selection
+            return selection
         else:
             raise RuntimeError(
                 f"{self.__class__.__name__} selection must be an `int`, `slice` object, "
                 f"or list of `int`s, but received type {type(selection)}."
             )
-        return lst
 
     def __len__(self) -> int:
         return self.task.num_elements

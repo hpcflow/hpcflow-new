@@ -120,7 +120,6 @@ class ConfigFile:
                 # for a config to "match", each "match key" must match the relevant run
                 # time info attribute. If a "match key" has multiple values, at least
                 # one value must match the run time info attribute:
-                is_match = True
                 for match_k, match_v in c_dat_i["invocation"]["match"].items():
                     # test for a matching glob pattern (where multiple may be specified):
                     if not isinstance(match_v, list):
@@ -135,10 +134,8 @@ class ConfigFile:
                         fnmatch.filter(names=[k_value], pat=match_i)
                         for match_i in match_v
                     ):
-                        is_match = False
                         break
-
-                if is_match:
+                else:
                     all_matches[c_name_i] = len(c_dat_i["invocation"]["match"])
 
             if all_matches:
@@ -321,8 +318,7 @@ class ConfigFile:
             new_data_rt = {"configs": {}}
 
         if not name:
-            chars = string.ascii_letters
-            name = "".join(random.choices(chars, k=6))
+            name = "".join(random.choices(string.ascii_letters, k=6))
 
         def_config = copy.deepcopy(config_options.default_config)
         new_config = {name: def_config}

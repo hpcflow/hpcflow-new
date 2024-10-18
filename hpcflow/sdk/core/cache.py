@@ -108,10 +108,11 @@ class DependencyCache:
         }
 
         # for each run, which iteration does it belong to?
-        all_run_iter_IDs: dict[int, int] = {}
-        for iter_ID, run_IDs in all_iter_run_IDs.items():
-            for run_ID in run_IDs:
-                all_run_iter_IDs[run_ID] = iter_ID
+        all_run_iter_IDs = {
+            run_ID: iter_ID
+            for iter_ID, run_IDs in all_iter_run_IDs.items()
+            for run_ID in run_IDs
+        }
 
         # for each iteration, which iterations does it depend on?
         iter_iter_dependencies = {
@@ -127,10 +128,11 @@ class DependencyCache:
         }
 
         # for each iteration, which element does it belong to?
-        all_iter_elem_IDs: dict[int, int] = {}
-        for elem_ID, iter_IDs in all_elem_iter_IDs.items():
-            for iter_ID in iter_IDs:
-                all_iter_elem_IDs[iter_ID] = elem_ID
+        all_iter_elem_IDs = {
+            iter_ID: elem_ID
+            for elem_ID, iter_IDs in all_elem_iter_IDs.items()
+            for iter_ID in iter_IDs
+        }
 
         # element dependencies
         elem_elem_dependencies = {
@@ -147,6 +149,8 @@ class DependencyCache:
         # for each element, which elements depend on it (recursively)?
         elem_elem_dependents_rec: defaultdict[int, set[int]] = defaultdict(set)
         for k in list(elem_elem_dependents):
+            # NB: code below modifies elem_elem_dependents during this loop;
+            # copy above is mandatory!
             for i in elem_elem_dependents[k]:
                 elem_elem_dependents_rec[k].add(i)
                 elem_elem_dependents_rec[k].update(

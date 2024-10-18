@@ -184,7 +184,7 @@ class Command(JSONLike):
             )
             cmd_str = cmd_str.replace(f"<<{var_key}>>", var_val)
             if "<<args>>" in cmd_str:
-                args_str = " ".join(self.arguments or [])
+                args_str = " ".join(self.arguments or ())
                 ends_in_args = cmd_str.endswith("<<args>>")
                 cmd_str = cmd_str.replace("<<args>>", args_str)
                 if ends_in_args and not args_str:
@@ -264,17 +264,15 @@ class Command(JSONLike):
         """
         out: dict[str, str | None] = {"stdout": None, "stderr": None}
         for i, label in zip((self.stdout, self.stderr), ("stdout", "stderr")):
-            if i:
-                match = self.__PARAM_RE.search(i)
-                if match:
-                    param_typ: str = match[1]
-                    if match.span(0) != (0, len(i)):
-                        raise ValueError(
-                            f"If specified as a parameter, `{label}` must not include"
-                            f" any characters other than the parameter "
-                            f"specification, but this was given: {i!r}."
-                        )
-                    out[label] = param_typ
+            if i and (match := self.__PARAM_RE.search(i)):
+                param_typ: str = match[1]
+                if match.span(0) != (0, len(i)):
+                    raise ValueError(
+                        f"If specified as a parameter, `{label}` must not include"
+                        f" any characters other than the parameter "
+                        f"specification, but this was given: {i!r}."
+                    )
+                out[label] = param_typ
         return out
 
     @staticmethod
@@ -286,21 +284,17 @@ class Command(JSONLike):
 
         kwargs: dict[str, str] = {}
         # deal with specified double-quoted arguments first if it exists:
-        for quote_arg in doubled_quoted_args or []:
+        for quote_arg in doubled_quoted_args or ():
             quote_pat = r'.*({quote_arg}="(.*)").*'.format(quote_arg=quote_arg)
-            match = re.match(quote_pat, args_str)
-            if match:
+            if (match := re.match(quote_pat, args_str)):
                 quote_str, quote_contents = match.groups()
                 args_str = args_str.replace(quote_str, "")
                 kwargs[quote_arg] = quote_contents
 
-        args_str = args_str.strip().strip(",")
-        if args_str:
+        if (args_str := args_str.strip().strip(",")):
             for i in args_str.split(","):
-                i_split = i.split("=")
-                name_i = i_split[0].strip()
-                value = i_split[1].strip()
-                kwargs[name_i] = value
+                name_i, value_i = map(str.strip, i.split("="))
+                kwargs[name_i] = value_i
         return kwargs
 
     def process_std_stream(self, name: str, value: str, stderr: bool) -> Any:
@@ -365,8 +359,7 @@ class Command(JSONLike):
             f"processing shell standard stream according to spec: {spec!r}"
         )
         param = self._app.Parameter(out_name)
-        match = re.match(pattern, spec)
-        if match is None:
+        if (match := re.match(pattern, spec)) is None:
             return value
         groups = match.groups()
         parse_type, parse_args_str = groups[1:3]

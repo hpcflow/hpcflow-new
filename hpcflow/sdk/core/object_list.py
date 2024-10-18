@@ -148,11 +148,11 @@ class ObjectList(JSONLike, Generic[T]):
 
         return self._get_all_from_objs(self._objects, **kwargs)
 
-    def _validate_get(self, result: Sequence[T], kwargs):
+    def _validate_get(self, result: Sequence[T], kwargs: dict[str, Any]):
         if not result:
-            available = []
+            available: list[dict[str, Any]] = []
             for obj in self._objects:
-                attr_vals = {}
+                attr_vals: dict[str, Any] = {}
                 for k in kwargs:
                     try:
                         attr_vals[k] = self._get_obj_attr(obj, k)
@@ -263,7 +263,7 @@ class DotAccessObjectList(ObjectList[T], Generic[T]):
         obj._object_is_dict = self._object_is_dict
         return obj
 
-    def _validate(self):
+    def _validate(self) -> None:
         for idx, obj in enumerate(self._objects):
             if not hasattr(obj, self._access_attribute):
                 raise TypeError(
@@ -276,8 +276,7 @@ class DotAccessObjectList(ObjectList[T], Generic[T]):
                     f"cannot be the same as any of the methods of "
                     f"{self.__class__.__name__!r}, which are: {self._pub_methods!r}."
                 )
-
-        return super()._validate()
+        super()._validate()
 
     def _update_index(self) -> None:
         """For quick look-up by access attribute."""
@@ -390,8 +389,7 @@ class DotAccessObjectList(ObjectList[T], Generic[T]):
         if skip_duplicates:
             for obj in objs:
                 index_ = self.add_object(obj, index, skip_duplicates=True)
-                if index_ is not None:
-                    index = index_ + 1
+                index = index if index_ is None else index_ + 1
         else:
             for obj in objs:
                 index = self.add_object(obj, index) + 1
@@ -872,7 +870,7 @@ class ResourceList(ObjectList["ResourceSpec"]):
         """
         Get the scopes of the contained resources.
         """
-        return tuple(i.scope for i in self._objects if i.scope is not None)
+        return tuple(rs.scope for rs in self._objects if rs.scope is not None)
 
     def merge_other(self, other: ResourceList):
         """Merge lower-precedence other resource list into this resource list."""

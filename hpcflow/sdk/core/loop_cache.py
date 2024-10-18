@@ -125,8 +125,8 @@ class LoopCache:
 
         deps_cache = DependencyCache.build(workflow)
 
-        loops = list(workflow.template.loops or []) + (loops or [])
-        task_iIDs = set(j for i in loops for j in i.task_insert_IDs)
+        loops = [*workflow.template.loops, *(loops or ())]
+        task_iIDs = {j for i in loops for j in i.task_insert_IDs}
         tasks: list[WorkflowTask] = [
             workflow.tasks.get(insert_ID=i) for i in sorted(task_iIDs)
         ]

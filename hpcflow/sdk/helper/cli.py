@@ -131,7 +131,7 @@ def get_helper_CLI(app: BaseApp):
     @helper.command()
     def watch_list() -> None:
         """Get the list of workflows currently being watched."""
-        for wk in get_helper_watch_list(app) or []:
+        for wk in get_helper_watch_list(app) or ():
             click.echo(str(wk["path"]))
 
     return helper

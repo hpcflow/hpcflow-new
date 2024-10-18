@@ -140,9 +140,9 @@ class TaskSchema(JSONLike):
         #: An optional string to label the task schema by its implementation.
         self.implementation = implementation
         #: A list of SchemaInput objects that define the inputs to the task.
-        self.inputs = self.__coerce_inputs(inputs or [])
+        self.inputs = self.__coerce_inputs(inputs or ())
         #: A list of SchemaOutput objects that define the outputs of the task.
-        self.outputs = self.__coerce_outputs(outputs or [])
+        self.outputs = self.__coerce_outputs(outputs or ())
         #: Where to find implementations of parameter value handlers.
         self.parameter_class_modules = parameter_class_modules or []
         #: Whether this object should be included in the Sphinx documentation
@@ -174,8 +174,7 @@ class TaskSchema(JSONLike):
                 for preset in self.environment_presets.values()
                 for preset_name in preset
             }
-            bad_envs = preset_envs - env_names
-            if bad_envs:
+            if (bad_envs := preset_envs - env_names):
                 raise EnvironmentPresetUnknownEnvironmentError(self.name, bad_envs)
 
         # if version is not None:  # TODO: this seems fragile
@@ -753,7 +752,7 @@ class TaskSchema(JSONLike):
                 # consider OFP inputs:
                 for act in self.actions:
                     for ofp in act.output_file_parsers:
-                        extra_ins.difference_update(ofp.inputs or [])
+                        extra_ins.difference_update(ofp.inputs or ())
 
                 if self.actions and extra_ins:
                     # allow for no actions (e.g. defining inputs for downstream tasks)

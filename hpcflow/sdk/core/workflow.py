@@ -347,8 +347,7 @@ class WorkflowTemplate(JSONLike):
                     else:
                         # no env/preset applicable here (and no env/preset at task level),
                         # so apply a default preset if available:
-                        app_env_specs_i = (schema_presets or {}).get("", None)
-                        if app_env_specs_i:
+                        if (app_env_specs_i := (schema_presets or {}).get("", None)):
                             self._app.logger.info(
                                 f"(task {task.name!r}, element set {es.index}): setting "
                                 f"to default (empty-string named) `env_preset`: "
@@ -389,30 +388,26 @@ class WorkflowTemplate(JSONLike):
 
         # extract out any template components:
         # TODO: TypedDict for data
-        tcs = data.pop("template_components", {})
-        params_dat = tcs.pop("parameters", [])
-        if params_dat:
+        tcs: dict[str, list] = data.pop("template_components", {})
+        if (params_dat := tcs.pop("parameters", [])):
             parameters = cls._app.ParametersList.from_json_like(
                 params_dat, shared_data=cls._app._shared_data
             )
             cls._app.parameters.add_objects(parameters, skip_duplicates=True)
 
-        cmd_files_dat = tcs.pop("command_files", [])
-        if cmd_files_dat:
+        if (cmd_files_dat := tcs.pop("command_files", [])):
             cmd_files = cls._app.CommandFilesList.from_json_like(
                 cmd_files_dat, shared_data=cls._app._shared_data
             )
             cls._app.command_files.add_objects(cmd_files, skip_duplicates=True)
 
-        envs_dat = tcs.pop("environments", [])
-        if envs_dat:
+        if (envs_dat := tcs.pop("environments", [])):
             envs = cls._app.EnvironmentsList.from_json_like(
                 envs_dat, shared_data=cls._app._shared_data
             )
             cls._app.envs.add_objects(envs, skip_duplicates=True)
 
-        ts_dat = tcs.pop("task_schemas", [])
-        if ts_dat:
+        if (ts_dat := tcs.pop("task_schemas", [])):
             task_schemas = cls._app.TaskSchemasList.from_json_like(
                 ts_dat, shared_data=cls._app._shared_data
             )
@@ -2575,12 +2570,10 @@ class Workflow(AppAware):
         """Submit outstanding EARs for execution."""
 
         # generate a new submission if there are no pending submissions:
-        pending = [i for i in self.submissions if i.needs_submit]
-        if not pending:
+        if not (pending := [i for i in self.submissions if i.needs_submit]):
             if status:
                 status.update("Adding new submission...")
-            new_sub = self._add_submission(tasks=tasks, JS_parallelism=JS_parallelism)
-            if not new_sub:
+            if not (new_sub := self._add_submission(tasks, JS_parallelism)):
                 raise ValueError("No pending element action runs to submit!")
             pending = [new_sub]
 

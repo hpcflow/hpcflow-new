@@ -113,10 +113,8 @@ class Rule(JSONLike):
         task = element_like.task
         schema_data_idx = element_like.data_idx
 
-        check = self.check_exists or self.check_missing
-        if check:
-            param_s = check.split(".")
-            if len(param_s) > 2:
+        if (check := self.check_exists or self.check_missing):
+            if len(check.split(".")) > 2:
                 # sub-parameter, so need to try to retrieve parameter data
                 try:
                     task._get_merged_parameter_data(

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import Counter, defaultdict
 from contextlib import AbstractContextManager, nullcontext
 from datetime import datetime
 import enum
@@ -2977,9 +2977,8 @@ class BaseApp(metaclass=Singleton):
             raise RuntimeError(
                 f"{self.name} has not been built with testing dependencies."
             )
-        test_args = (self.pytest_args or []) + list(args)
         with get_file_context(self.package_name, "tests") as test_dir:
-            return pytest.main([str(test_dir)] + test_args)
+            return pytest.main([str(test_dir), *(self.pytest_args or ()), *args])
 
     def _get_OS_info(self) -> dict[str, str]:
         """Get information about the operating system."""
@@ -3401,10 +3400,9 @@ class BaseApp(metaclass=Singleton):
                         task_tab.add_column()
                         task_tab.add_column()
 
-                        for task_idx, elements in dat_i[
-                            "submission"
-                        ].EARs_by_elements.items():
-                            task = dat_i["submission"].workflow.tasks[task_idx]
+                        sub = dat_i["submission"]
+                        for task_idx, elements in sub.EARs_by_elements.items():
+                            task = sub.workflow.tasks[task_idx]
 
                             # inner table for elements/actions:
                             elem_tab_i = Table(box=None, show_header=False)
@@ -3424,12 +3422,12 @@ class BaseApp(metaclass=Singleton):
 
                 if "actions_compact" in columns:
                     if not no_access:
-                        EAR_stat_count: dict[EARStatus, int] = defaultdict(int)
-                        sub = cast(Submission, dat_i["submission"])
-                        for elements in sub.EARs_by_elements.values():
-                            for EARs in elements.values():
-                                for i in EARs:
-                                    EAR_stat_count[i.status] += 1
+                        EAR_stat_count = Counter(
+                            ear.status
+                            for elements in dat_i["submission"].EARs_by_elements.values()
+                            for EARs in elements.values()
+                            for ear in EARs
+                        )
                         all_cells["actions_compact"] = " | ".join(
                             f"[{k.colour}]{k.symbol}[/{k.colour}]:{v}"  # type: ignore
                             for k, v in EAR_stat_count.items()
@@ -3666,8 +3664,7 @@ class BaseApp(metaclass=Singleton):
                 f"`demo_data_manifest_dir`: "
                 f"{self.demo_data_manifest_dir!r}."
             )
-            package = self.demo_data_manifest_dir
-            if package is None:
+            if (package := self.demo_data_manifest_dir) is None:
                 self.logger.warning("no demo data dir defined")
                 return {}
             with open_text_resource(package, "demo_data_manifest.json") as fh:
@@ -3747,33 +3744,26 @@ class BaseApp(metaclass=Singleton):
                 f"source directory: {self.demo_data_dir!r}."
             )
             # `config.demo_data_dir` not set, so try to use `app.demo_data_dir`:
-            package = self.demo_data_dir
-            try:
-                if not package:
-                    resource_exists = False
-                else:
-                    delete = False
+            
+            if (package := self.demo_data_dir):
+                try:
                     with get_file_context(package, src_fn) as path:
                         out = path
-                    resource_exists = True
-            except (ModuleNotFoundError, FileNotFoundError):
-                # frozen app, etc.
-                resource_exists = False
-
-            if not resource_exists and package is not None:
-                # example data not included (e.g. frozen, or installed via PyPI/conda), so
-                # set a default value for `config.demo_data_dir` (point to the package
-                # GitHub repo for the current tag):
-                path_ = "/".join(package.split("."))
-                url = self._get_github_url(sha=f"v{self.version}", path=path_)
-                self.logger.info(
-                    f"path {path_!r} does not exist as a package resource (example data "
-                    f"was probably not included in the app), so non-persistently setting "
-                    f"the config item `demo_data_dir` to the app's GitHub repo path: "
-                    f"{url!r}."
-                )
-                self.config.demo_data_dir = url
-                out, delete = _retrieve_source_path_from_config(src_fn)
+                        delete = False
+                except (ModuleNotFoundError, FileNotFoundError):
+                    # example data not included (e.g. frozen, or installed via
+                    # PyPI/conda), so set a default value for `config.demo_data_dir`
+                    # (point to the package GitHub repo for the current tag):
+                    path_ = "/".join(package.split("."))
+                    url = self._get_github_url(sha=f"v{self.version}", path=path_)
+                    self.logger.info(
+                        f"path {path_!r} does not exist as a package resource (example data "
+                        f"was probably not included in the app), so non-persistently setting "
+                        f"the config item `demo_data_dir` to the app's GitHub repo path: "
+                        f"{url!r}."
+                    )
+                    self.config.demo_data_dir = url
+                    out, delete = _retrieve_source_path_from_config(src_fn)
 
         return out, requires_unpack, delete
 

@@ -145,8 +145,7 @@ class Executable(JSONLike):
         """
         The environment that the executable is going to run in.
         """
-        el = self._executables_list
-        return el.environment if el is not None else None
+        return None if (el := self._executables_list) is None else el.environment
 
     def filter_instances(
         self, parallel_mode: str | None = None, num_cores: int | None = None
@@ -167,12 +166,12 @@ class Executable(JSONLike):
         list[ExecutableInstance]:
             The known executable instances that match the requirements.
         """
-        out: list[ExecutableInstance] = []
-        for i in self.instances:
-            if parallel_mode is None or i.parallel_mode == parallel_mode:
-                if num_cores is None or num_cores in i.num_cores:
-                    out.append(i)
-        return out
+        return [
+            inst
+            for inst in self.instances
+            if (parallel_mode is None or inst.parallel_mode == parallel_mode)
+                and (num_cores is None or num_cores in inst.num_cores)
+        ]
 
 
 class Environment(JSONLike):
@@ -218,18 +217,17 @@ class Environment(JSONLike):
         self.executables = (
             executables
             if isinstance(executables, ExecutablesList)
-            else self._app.ExecutablesList(executables or [])
+            else self._app.ExecutablesList(executables or ())
         )
         self._hash_value = _hash_value
         #: Commands to run to enter the environment.
         self.setup: tuple[str, ...] | None
-        if setup:
-            if isinstance(setup, str):
-                self.setup = tuple(i.strip() for i in dedent(setup).strip().split("\n"))
-            else:
-                self.setup = tuple(setup)
-        else:
+        if not setup:
             self.setup = None
+        elif isinstance(setup, str):
+            self.setup = tuple(i.strip() for i in setup.strip().split("\n"))
+        else:
+            self.setup = tuple(setup)
         self._set_parent_refs()
         self._validate()
 
@@ -245,6 +243,5 @@ class Environment(JSONLike):
         return f"{self.__class__.__name__}({self.name!r})"
 
     def _validate(self):
-        dup_labels = get_duplicate_items(i.label for i in self.executables)
-        if dup_labels:
+        if (dup_labels := get_duplicate_items(i.label for i in self.executables)):
             raise DuplicateExecutableError(dup_labels)

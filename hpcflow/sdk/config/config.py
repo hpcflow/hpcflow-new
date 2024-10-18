@@ -73,6 +73,7 @@ if TYPE_CHECKING:
         T,
     )
     from ..app import BaseApp
+    from ..core.types import AbstractFileSystem
 
 
 logger = logging.getLogger(__name__)
@@ -283,9 +284,8 @@ class Config:
         self._modified_keys: ConfigDescriptor = {}
         self._unset_keys: set[str] = set()
 
-        for name in overrides:
-            if name not in self._configurable_keys:
-                raise ConfigUnknownOverrideError(name=name)
+        if any((unknown := name) not in self._configurable_keys for name in overrides):
+            raise ConfigUnknownOverrideError(name=unknown)
 
         host_uid, host_uid_file_path = self._get_user_id()
 
@@ -534,11 +534,11 @@ class Config:
         """
         self._logger.info(f"disabling config callbacks: {callbacks!r}")
         get_callbacks_tmp: dict[str, Sequence[GetterCallback]] = {
-            k: tuple(i for i in v if i.__name__ not in callbacks)
+            k: tuple(cb for cb in v if cb.__name__ not in callbacks)
             for k, v in self._get_callbacks.items()
         }
         set_callbacks_tmp: dict[str, Sequence[SetterCallback]] = {
-            k: tuple(i for i in v if i.__name__ not in callbacks)
+            k: tuple(cb for cb in v if cb.__name__ not in callbacks)
             for k, v in self._set_callbacks.items()
         }
         get_callbacks = copy.deepcopy(self._get_callbacks)
@@ -573,8 +573,7 @@ class Config:
                 f"Not resolving path {path!r} because it looks like an `fsspec` URL."
             )
             return path
-        real_path = Path(path)
-        real_path = real_path.expanduser()
+        real_path = Path(path).expanduser()
         if not real_path.is_absolute():
             cfg_dir = self._meta_data["config_directory"]
             real_path = cfg_dir.joinpath(real_path)
@@ -697,7 +696,7 @@ class Config:
 
     def _get_callback_value(self, name: str, value):
         if name in self._get_callbacks and value is not None:
-            for cb in self._get_callbacks.get(name, []):
+            for cb in self._get_callbacks.get(name, ()):
                 self._logger.debug(
                     f"Invoking `config.get` callback ({cb.__name__!r}) for item {name!r}={value!r}"
                 )
@@ -845,7 +844,7 @@ class Config:
                 self._validate()
 
                 if callback:
-                    for cb in self._set_callbacks.get(name, []):
+                    for cb in self._set_callbacks.get(name, ()):
                         self._logger.debug(
                             f"Invoking `config.set` callback for item {name!r}: {cb.__name__!r}"
                         )
@@ -1281,27 +1280,25 @@ class Config:
     def init(self, known_name: str, path: str | None = None) -> None:
         """Configure from a known importable config."""
         if not path:
-            path = self._options.default_known_configs_dir
-            if not path:
+            if not (path := self._options.default_known_configs_dir):
                 raise ValueError("Specify an `path` to search for known config files.")
         elif path == ".":
             path = str(Path(path).resolve())
 
         self._logger.debug(f"init with `path` = {path!r}")
 
-        fs = fsspec.open(path).fs
+        fs: AbstractFileSystem = fsspec.open(path).fs
         local_path = f"{path}/" if isinstance(fs, LocalFileSystem) else ""
         files = fs.glob(f"{local_path}*.yaml") + fs.glob(f"{local_path}*.yml")
         self._logger.debug(f"All YAML files found in file-system {fs!r}: {files}")
 
-        files = [i for i in files if Path(i).stem.startswith(known_name)]
-        if not files:
+        if not (files := [i for i in files if Path(i).stem.startswith(known_name)]):
             print(f"No configuration-import files found matching name {known_name!r}.")
             return
 
         print(f"Found configuration-import files: {files!r}")
-        for i in files:
-            self.import_from_file(file_path=i, make_new=True)
+        for file_i in files:
+            self.import_from_file(file_path=file_i, make_new=True)
 
         print("imports complete")
         # if current config is named "default", rename machine to DEFAULT_CONFIG:

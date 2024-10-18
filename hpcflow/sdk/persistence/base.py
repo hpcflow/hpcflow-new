@@ -1867,8 +1867,7 @@ class PersistentStore(
         tasks_new: list[AnySTask] = []
         for task_i in tasks:
             # consider pending element IDs:
-            pend_elems = self._pending.add_elem_IDs.get(task_i.id_)
-            if pend_elems:
+            if (pend_elems := self._pending.add_elem_IDs.get(task_i.id_)):
                 task_i = task_i.append_element_IDs(pend_elems)
             tasks_new.append(task_i)
         return tasks_new
@@ -1882,16 +1881,22 @@ class PersistentStore(
             if "num_added_iterations" not in loop_i:
                 loop_i["num_added_iterations"] = 1
             # consider pending changes to num added iterations:
-            pend_num_iters = self._pending.update_loop_num_iters.get(id_)
-            if pend_num_iters:
+            if (pend_num_iters := self._pending.update_loop_num_iters.get(id_)):
                 loop_i["num_added_iterations"] = pend_num_iters
             # consider pending change to parents:
-            pend_parents = self._pending.update_loop_parents.get(id_)
-            if pend_parents:
+            if (pend_parents := self._pending.update_loop_parents.get(id_)):
                 loop_i["parents"] = pend_parents
 
             loops_new[id_] = loop_i
         return loops_new
+
+    @staticmethod
+    def __split_pending(ids: Iterable[int], all_pending: Mapping[int, Any]) -> tuple[tuple[int, ...], set[int], set[int]]:
+        id_all = tuple(ids)
+        id_set = set(id_all)
+        id_pers = id_set.difference(all_pending)
+        id_pend = id_set.intersection(all_pending)
+        return id_all, id_pers, id_pend
 
     @abstractmethod
     def _get_persistent_tasks(self, id_lst: Iterable[int]) -> dict[int, AnySTask]:
@@ -1902,17 +1907,13 @@ class PersistentStore(
         Get tasks with the given IDs.
         """
         # separate pending and persistent IDs:
-        id_lst = list(ids)
-        id_set = set(id_lst)
-        all_pending = set(self._pending.add_tasks)
-        id_pers = id_set.difference(all_pending)
-        id_pend = id_set.intersection(all_pending)
 
+        ids, id_pers, id_pend = self.__split_pending(ids, self._pending.add_tasks)
         tasks = self._get_persistent_tasks(id_pers) if id_pers else {}
         tasks.update((i, self._pending.add_tasks[i]) for i in id_pend)
 
         # order as requested:
-        return self.__process_retrieved_tasks(tasks[id_] for id_ in id_lst)
+        return self.__process_retrieved_tasks(tasks[id_] for id_ in ids)
 
     @TimeIt.decorator
     def get_tasks(self) -> list[AnySTask]:
@@ -1935,17 +1936,13 @@ class PersistentStore(
         """Retrieve loops by index (ID), including pending."""
 
         # separate pending and persistent IDs:
-        id_lst = list(ids)
-        id_set = set(id_lst)
-        all_pending = set(self._pending.add_loops)
-        id_pers = id_set.difference(all_pending)
-        id_pend = id_set.intersection(all_pending)
+        ids, id_pers, id_pend = self.__split_pending(ids, self._pending.add_loops)
 
         loops = self._get_persistent_loops(id_pers) if id_pers else {}
         loops.update((i, self._pending.add_loops[i]) for i in id_pend)
 
         # order as requested:
-        return self.__process_retrieved_loops({id_: loops[id_] for id_ in id_lst})
+        return self.__process_retrieved_loops({id_: loops[id_] for id_ in ids})
 
     def get_loops(self) -> dict[int, LoopDescriptor]:
         """Retrieve all loops, including pending."""
@@ -1979,13 +1976,8 @@ class PersistentStore(
         """
         Get submissions with the given IDs.
         """
-        id_lst = list(ids)
         # separate pending and persistent IDs:
-        id_set = set(id_lst)
-        all_pending = set(self._pending.add_submissions)
-        id_pers = id_set.difference(all_pending)
-        id_pend = id_set.intersection(all_pending)
-
+        _, id_pers, id_pend = self.__split_pending(ids, self._pending.add_submissions)
         subs = self._get_persistent_submissions(id_pers) if id_pers else {}
         subs.update((i, self._pending.add_submissions[i]) for i in id_pend)
 
@@ -2001,25 +1993,18 @@ class PersistentStore(
         """
         Get elements with the given IDs.
         """
-        id_lst = list(ids)
-        self.logger.debug(f"PersistentStore.get_elements: id_lst={id_lst!r}")
-
         # separate pending and persistent IDs:
-        id_set = set(id_lst)
-        all_pending = set(self._pending.add_elements)
-        id_pers = id_set.difference(all_pending)
-        id_pend = id_set.intersection(all_pending)
-
+        ids, id_pers, id_pend = self.__split_pending(ids, self._pending.add_elements)
+        self.logger.debug(f"PersistentStore.get_elements: id_lst={ids!r}")
         elems = self._get_persistent_elements(id_pers) if id_pers else {}
         elems.update((i, self._pending.add_elements[i]) for i in id_pend)
 
         elems_new: list[AnySElement] = []
         # order as requested:
-        for elem_i in (elems[id_] for id_ in id_lst):
+        for elem_i in (elems[id_] for id_ in ids):
             # consider pending iteration IDs:
             # TODO: does this consider pending iterations from new loop iterations?
-            pend_iters = self._pending.add_elem_iter_IDs.get(elem_i.id_)
-            if pend_iters:
+            if (pend_iters := self._pending.add_elem_iter_IDs.get(elem_i.id_)):
                 elem_i = elem_i.append_iteration_IDs(pend_iters)
             elems_new.append(elem_i)
 
@@ -2036,29 +2021,21 @@ class PersistentStore(
         """
         Get element iterations with the given IDs.
         """
-        id_lst = list(ids)
-        self.logger.debug(f"PersistentStore.get_element_iterations: id_lst={id_lst!r}")
-
         # separate pending and persistent IDs:
-        id_set = set(id_lst)
-        all_pending = set(self._pending.add_elem_iters)
-        id_pers = id_set.difference(all_pending)
-        id_pend = id_set.intersection(all_pending)
-
+        ids, id_pers, id_pend = self.__split_pending(ids, self._pending.add_elem_iters)
+        self.logger.debug(f"PersistentStore.get_element_iterations: id_lst={ids!r}")
         iters = self._get_persistent_element_iters(id_pers) if id_pers else {}
         iters.update((i, self._pending.add_elem_iters[i]) for i in id_pend)
 
         iters_new: list[AnySElementIter] = []
         # order as requested:
-        for iter_i in (iters[id_] for id_ in id_lst):
+        for iter_i in (iters[id_] for id_ in ids):
             # consider pending EAR IDs:
-            pend_EARs = self._pending.add_elem_iter_EAR_IDs.get(iter_i.id_)
-            if pend_EARs:
+            if (pend_EARs := self._pending.add_elem_iter_EAR_IDs.get(iter_i.id_)):
                 iter_i = iter_i.append_EAR_IDs(pend_EARs)
 
             # consider pending loop idx
-            pend_loop_idx = self._pending.update_loop_indices.get(iter_i.id_)
-            if pend_loop_idx:
+            if (pend_loop_idx := self._pending.update_loop_indices.get(iter_i.id_)):
                 iter_i = iter_i.update_loop_idx(pend_loop_idx)
 
             # consider pending `EARs_initialised`:
@@ -2078,21 +2055,15 @@ class PersistentStore(
         """
         Get element action runs with the given IDs.
         """
-        id_lst = list(ids)
-        self.logger.debug(f"PersistentStore.get_EARs: id_lst={id_lst!r}")
-
         # separate pending and persistent IDs:
-        id_set = set(id_lst)
-        all_pending = set(self._pending.add_EARs)
-        id_pers = id_set.difference(all_pending)
-        id_pend = id_set.intersection(all_pending)
-
+        ids, id_pers, id_pend = self.__split_pending(ids, self._pending.add_EARs)
+        self.logger.debug(f"PersistentStore.get_EARs: id_lst={ids!r}")
         EARs = self._get_persistent_EARs(id_pers) if id_pers else {}
         EARs.update((i, self._pending.add_EARs[i]) for i in id_pend)
 
         EARs_new: list[AnySEAR] = []
         # order as requested:
-        for EAR_i in (EARs[id_] for id_ in id_lst):
+        for EAR_i in (EARs[id_] for id_ in ids):
             # consider updates:
             updates: dict[str, Any] = {
                 "submission_idx": self._pending.set_EAR_submission_indices.get(EAR_i.id_)
@@ -2169,13 +2140,13 @@ class PersistentStore(
         return self.get_EARs([EAR_ID])[0].skip
 
     @TimeIt.decorator
-    def get_parameters(self, id_lst: Iterable[int], **kwargs) -> list[AnySParameter]:
+    def get_parameters(self, ids: Iterable[int], **kwargs) -> list[AnySParameter]:
         """
         Get parameters with the given IDs.
 
         Parameters
         ----------
-        id_lst:
+        ids:
             The IDs of the parameters to get.
 
         Keyword Arguments
@@ -2184,18 +2155,14 @@ class PersistentStore(
             For Zarr stores only. If True, copy arrays as NumPy arrays.
         """
         # separate pending and persistent IDs:
-        id_set = set(id_lst)
-        all_pending = set(self._pending.add_parameters)
-        id_pers = id_set.difference(all_pending)
-        id_pend = id_set.intersection(all_pending)
-
+        ids, id_pers, id_pend = self.__split_pending(ids, self._pending.add_parameters)
         params = (
             dict(self._get_persistent_parameters(id_pers, **kwargs)) if id_pers else {}
         )
         params.update((i, self._pending.add_parameters[i]) for i in id_pend)
 
         # order as requested:
-        return [params[id_] for id_ in id_lst]
+        return [params[id_] for id_ in ids]
 
     @abstractmethod
     def _get_persistent_parameters(
@@ -2204,21 +2171,17 @@ class PersistentStore(
         ...
 
     @TimeIt.decorator
-    def get_parameter_set_statuses(self, id_lst: Iterable[int]) -> list[bool]:
+    def get_parameter_set_statuses(self, ids: Iterable[int]) -> list[bool]:
         """
         Get whether the parameters with the given IDs are set.
         """
         # separate pending and persistent IDs:
-        id_set = set(id_lst)
-        all_pending = set(self._pending.add_parameters)
-        id_pers = id_set.difference(all_pending)
-        id_pend = id_set.intersection(all_pending)
-
+        ids, id_pers, id_pend = self.__split_pending(ids, self._pending.add_parameters)
         set_status = self._get_persistent_parameter_set_status(id_pers) if id_pers else {}
         set_status.update((i, self._pending.add_parameters[i].is_set) for i in id_pend)
 
         # order as requested:
-        return [set_status[id_] for id_ in id_lst]
+        return [set_status[id_] for id_ in ids]
 
     @abstractmethod
     def _get_persistent_parameter_set_status(
@@ -2227,16 +2190,12 @@ class PersistentStore(
         ...
 
     @TimeIt.decorator
-    def get_parameter_sources(self, id_lst: Iterable[int]) -> list[ParamSource]:
+    def get_parameter_sources(self, ids: Iterable[int]) -> list[ParamSource]:
         """
         Get the sources of the parameters with the given IDs.
         """
         # separate pending and persistent IDs:
-        id_set = set(id_lst)
-        all_pending = set(self._pending.add_parameters)
-        id_pers = id_set.difference(all_pending)
-        id_pend = id_set.intersection(all_pending)
-
+        ids, id_pers, id_pend = self.__split_pending(ids, self._pending.add_parameters)
         src = self._get_persistent_param_sources(id_pers) if id_pers else {}
         src.update((i, self._pending.add_parameters[i].source) for i in id_pend)
 
@@ -2245,7 +2204,7 @@ class PersistentStore(
             self.__merge_param_source(
                 src[id_i], self._pending.update_param_sources.get(id_i)
             )
-            for id_i in id_lst
+            for id_i in ids
         ]
 
     @staticmethod
@@ -2308,11 +2267,12 @@ class PersistentStore(
     def _get_persistent_parameter_IDs(self) -> Iterable[int]:
         ...
 
-    def check_parameters_exist(self, id_lst: Iterable[int]) -> list[bool]:
+    def check_parameters_exist(self, ids: Iterable[int]) -> list[bool]:
         """For each parameter ID, return True if it exists, else False"""
 
+        id_lst = list(ids)
         id_set = set(id_lst)
-        all_pending = set(self._pending.add_parameters)
+        all_pending = self._pending.add_parameters
         id_not_pend = id_set.difference(all_pending)
         id_miss = set()
         if id_not_pend:

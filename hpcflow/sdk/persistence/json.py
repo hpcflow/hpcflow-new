@@ -657,8 +657,7 @@ class JSONPersistentStore(
                 js: dict[str, dict[str | int, Any]]
                 assert isinstance(sub, dict)
                 for js in sub["jobscripts"]:
-                    te = js["task_elements"]
-                    for key in list(te.keys()):
+                    for key in list(te := js["task_elements"]):
                         te[int(key)] = te.pop(key)
 
         return subs_dat

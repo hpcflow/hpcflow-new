@@ -157,8 +157,7 @@ class Loop(JSONLike):
         self._validate_against_template()
 
     def __workflow(self) -> None | Workflow:
-        wt = self.workflow_template
-        if wt is None:
+        if (wt := self.workflow_template) is None:
             return None
         return wt.workflow
 
@@ -167,8 +166,7 @@ class Loop(JSONLike):
         """
         The tasks in the loop.
         """
-        wf = self.__workflow()
-        if not wf:
+        if not (wf := self.__workflow()):
             raise RuntimeError(
                 "Workflow template must be assigned to retrieve task objects of the loop."
             )
@@ -178,8 +176,7 @@ class Loop(JSONLike):
         """Validate the loop parameters against the associated workflow."""
 
         # insert IDs must exist:
-        wf = self.__workflow()
-        if not wf:
+        if not (wf := self.__workflow()):
             raise RuntimeError(
                 "workflow cannot be validated against as it is not assigned"
             )
@@ -605,8 +602,7 @@ class WorkflowLoop(AppAware):
 
                 for inp in task.template.all_schema_inputs:
                     is_inp_task = False
-                    iter_dat = self.iterable_parameters.get(inp.typ)
-                    if iter_dat:
+                    if (iter_dat := self.iterable_parameters.get(inp.typ)):
                         is_inp_task = task.insert_ID == iter_dat["input_task"]
 
                     inp_key = f"inputs.{inp.typ}"

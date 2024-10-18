@@ -138,7 +138,7 @@ class FileNameSpec(JSONLike):
         directory: str
             Where to resolve values with respect to.
         """
-        format_args = [i.value(directory) for i in self.args or []]
+        format_args = [arg.value(directory) for arg in self.args or ()]
         value = self.name.format(*format_args)
         if self.is_regex:
             return search_dir_files_by_regex(value, directory=directory)
@@ -309,11 +309,9 @@ class InputFileGenerator(JSONLike):
         Write the script if it is specified as a snippet script, otherwise we assume
         the script already exists in the working directory.
         """
-        snip_path = action.get_snippet_script_path(self.script, env_spec)
-        if snip_path:
-            source_str = self.compose_source(snip_path)
+        if (snip_path := action.get_snippet_script_path(self.script, env_spec)):
             with Path(snip_path.name).open("wt", newline="\n") as fp:
-                fp.write(source_str)
+                fp.write(self.compose_source(snip_path))
 
 
 @dataclass
@@ -423,7 +421,7 @@ class OutputFileParser(JSONLike):
             self._save_files = []
         elif save_files is True:
             # save all output files
-            self._save_files = [i for i in self.output_files]
+            self._save_files = [out_f for out_f in self.output_files]
         else:
             self._save_files = save_files
 
@@ -449,8 +447,8 @@ class OutputFileParser(JSONLike):
         """Get the rules that allow testing if this output file parser must be run or not
         for a given element."""
         return [
-            self._app.ActionRule.check_missing(f"output_files.{i.label}")
-            for i in self.output_files
+            self._app.ActionRule.check_missing(f"output_files.{out_f.label}")
+            for out_f in self.output_files
         ] + self.rules
 
     def compose_source(self, snip_path: Path) -> str:
@@ -516,11 +514,9 @@ class OutputFileParser(JSONLike):
 
         # write the script if it is specified as a snippet script, otherwise we assume
         # the script already exists in the working directory:
-        snip_path = action.get_snippet_script_path(self.script, env_spec)
-        if snip_path:
-            source_str = self.compose_source(snip_path)
+        if (snip_path := action.get_snippet_script_path(self.script, env_spec)):
             with Path(snip_path.name).open("wt", newline="\n") as fp:
-                fp.write(source_str)
+                fp.write(self.compose_source(snip_path))
 
 
 @hydrate

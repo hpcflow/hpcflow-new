@@ -59,8 +59,7 @@ class _ElementPrefixedParameter(AppAware):
                 f"{self.prefixed_names_unlabelled_str}."
             )
 
-        labels = self.prefixed_names_unlabelled.get(name)
-        if labels:
+        if (labels := self.prefixed_names_unlabelled.get(name)):
             # is multiple; return a dict of `ElementParameter`s
             return {
                 label_i: self._app.ElementParameter(
@@ -119,19 +118,16 @@ class _ElementPrefixedParameter(AppAware):
         """
         A description of the prefixed names.
         """
-        return ", ".join(i for i in self.prefixed_names_unlabelled)
+        return ", ".join(self.prefixed_names_unlabelled)
 
     def __repr__(self) -> str:
         # If there are one or more labels present, then replace with a single name
         # indicating there could be multiple (using a `*` prefix):
-        names: list[str] = []
-        for unlabelled, labels in self.prefixed_names_unlabelled.items():
-            name_i = unlabelled
-            if labels:
-                name_i = "*" + name_i
-            names.append(name_i)
-        names_str = ", ".join(i for i in names)
-        return f"{self.__class__.__name__}({names_str})"
+        names = ", ".join(
+            "*" + unlabelled if labels else unlabelled
+            for unlabelled, labels in self.prefixed_names_unlabelled.items()
+        )
+        return f"{self.__class__.__name__}({names})"
 
     def _get_prefixed_names(self) -> list[str]:
         return sorted(self._parent.get_parameter_names(self._prefix))
@@ -139,7 +135,7 @@ class _ElementPrefixedParameter(AppAware):
     def _get_prefixed_names_unlabelled(self) -> dict[str, list[str]]:
         names = self._get_prefixed_names()
         all_names: dict[str, list[str]] = {}
-        for i in list(names):
+        for i in names:
             if "[" in i:
                 unlab_i, label_i = split_param_label(i)
                 if unlab_i is not None and label_i is not None:
@@ -732,11 +728,11 @@ class ElementIteration(AppAware):
 
         """
         single_label_lookup = self.task.template._get_single_label_lookup("inputs")
-        return list(
-            ".".join(single_label_lookup.get(i, i).split(".")[1:])
-            for i in self.schema_parameters
-            if i.startswith(prefix)
-        )
+        return [
+            ".".join(single_label_lookup.get(param_name, param_name).split(".")[1:])
+            for param_name in self.schema_parameters
+            if param_name.startswith(prefix)
+        ]
 
     @TimeIt.decorator
     def get_data_idx(
@@ -770,8 +766,7 @@ class ElementIteration(AppAware):
             data_idx = {}
             for action in self.actions.values():
                 for k, v in action.runs[run_idx].data_idx.items():
-                    is_input = k.startswith("inputs")
-                    if (is_input and k not in data_idx) or not is_input:
+                    if not k.startswith("inputs") or k not in data_idx:
                         data_idx[k] = v
 
         else:
@@ -799,8 +794,7 @@ class ElementIteration(AppAware):
         if use_task_index:
             for k, v in out.items():
                 assert isinstance(v, dict)
-                insert_ID = v.pop("task_insert_ID", None)
-                if insert_ID is not None:
+                if (insert_ID := v.pop("task_insert_ID", None)) is not None:
                     # Modify the contents of out
                     v["task_idx"] = self.workflow.tasks.get(insert_ID=insert_ID).index
 
@@ -819,8 +813,7 @@ class ElementIteration(AppAware):
         value: ParamSource | list[ParamSource], filter_type: str
     ) -> ParamSource | list[ParamSource] | None:
         if isinstance(value, list):
-            sources = [src for src in value if src["type"] == filter_type]
-            if sources:
+            if (sources := [src for src in value if src["type"] == filter_type]):
                 return sources
         else:
             if value["type"] == filter_type:
@@ -928,8 +921,7 @@ class ElementIteration(AppAware):
                 if (path or "").startswith(key):
                     # `path` uses labelled type, so no need to convert to non-labelled
                     continue
-                lookup_val = single_label_lookup.get(key)
-                if lookup_val:
+                if (lookup_val := single_label_lookup.get(key)):
                     data_idx[lookup_val] = data_idx.pop(key)
 
         return self.task._get_merged_parameter_data(
@@ -964,25 +956,22 @@ class ElementIteration(AppAware):
         # TODO: test this includes EARs of upstream iterations of this iteration's element
         out: list[int]
         if self.action_runs:
-            EAR_IDs_set = set(self.EAR_IDs_flat)
-            out = sorted(
-                set(
-                    EAR_ID
-                    for i in self.action_runs
-                    for EAR_ID in i.get_EAR_dependencies(as_objects=False)
-                    if EAR_ID not in EAR_IDs_set
-                )
-            )
+            EAR_IDs_set = frozenset(self.EAR_IDs_flat)
+            out = sorted({
+                EAR_ID
+                for ear in self.action_runs
+                for EAR_ID in ear.get_EAR_dependencies()
+                if EAR_ID not in EAR_IDs_set
+            })
         else:
             # if an "input-only" task schema, then there will be no action runs, but the
             # ElementIteration can still depend on other EARs if inputs are sourced from
             # upstream tasks:
-            out = []
-            for src in self.get_parameter_sources(typ="EAR_output").values():
-                for src_i in src if isinstance(src, list) else [src]:
-                    EAR_ID_i = src_i["EAR_ID"]
-                    out.append(EAR_ID_i)
-            out = sorted(set(out))
+            out = sorted({
+                src_i["EAR_ID"]
+                for src in self.get_parameter_sources(typ="EAR_output").values()
+                for src_i in (src if isinstance(src, list) else [src])
+            })
 
         if as_objects:
             return self.workflow.get_EARs_from_IDs(out)
@@ -1006,7 +995,7 @@ class ElementIteration(AppAware):
     ) -> list[int] | list[ElementIteration]:
         """Get element iterations that this element iteration depends on."""
         # TODO: test this includes previous iterations of this iteration's element
-        EAR_IDs = self.get_EAR_dependencies(as_objects=False)
+        EAR_IDs = self.get_EAR_dependencies()
         out = sorted(set(self.workflow.get_element_iteration_IDs_from_EAR_IDs(EAR_IDs)))
         if as_objects:
             return self.workflow.get_element_iterations_from_IDs(out)
@@ -1033,7 +1022,7 @@ class ElementIteration(AppAware):
     ) -> list[int] | list[Element]:
         """Get elements that this element iteration depends on."""
         # TODO: this will be used in viz.
-        EAR_IDs = self.get_EAR_dependencies(as_objects=False)
+        EAR_IDs = self.get_EAR_dependencies()
         out = sorted(set(self.workflow.get_element_IDs_from_EAR_IDs(EAR_IDs)))
         if as_objects:
             return self.workflow.get_elements_from_IDs(out)
@@ -1070,17 +1059,15 @@ class ElementIteration(AppAware):
         Dependencies may come from either elements from upstream tasks, or from locally
         defined inputs/sequences/defaults from upstream tasks."""
 
-        out = self.workflow.get_task_IDs_from_element_IDs(
+        out_set = set(self.workflow.get_task_IDs_from_element_IDs(
             self.get_element_dependencies(as_objects=False)
-        )
+        ))
         for i in self.get_input_dependencies().values():
-            out.append(i["task_insert_ID"])
+            out_set.add(i["task_insert_ID"])
 
-        out = sorted(set(out))
-
+        out = sorted(out_set)
         if as_objects:
             return [self.workflow.tasks.get(insert_ID=i) for i in out]
-
         return out
 
     @overload
@@ -1224,8 +1211,7 @@ class ElementIteration(AppAware):
 
     def get_template_resources(self) -> dict[str, Any]:
         """Get template-level resources."""
-        res = self.workflow.template.resources
-        if res is None:
+        if (res := self.workflow.template.resources) is None:
             return {}
         assert isinstance(res, ResourceList)
         return {res_i.normalised_resources_path: res_i._get_value() for res_i in res}
@@ -1570,14 +1556,13 @@ class Element(AppAware):
         """
         Get the value of a sequence that applies.
         """
-        seq = self.element_set.get_sequence_from_path(sequence_path)
-        if not seq:
+        
+        if not (seq := self.element_set.get_sequence_from_path(sequence_path)):
             raise ValueError(
                 f"No sequence with path {sequence_path!r} in this element's originating "
                 f"element set."
             )
-        values = seq.values
-        if values is None:
+        if (values := seq.values) is None:
             raise ValueError(
                 f"Sequence with path {sequence_path!r} has no defined values."
             )
@@ -1966,11 +1951,11 @@ class ElementFilter(JSONLike):
         """
         Apply the filter rules to select a subsequence of iterations.
         """
-        out: list[ElementIteration] = []
-        for i in element_iters:
-            if all(rule_j.test(i) for rule_j in self.rules):
-                out.append(i)
-        return out
+        return [
+            el_iter
+            for el_iter in element_iters
+            if all(rule_j.test(el_iter) for rule_j in self.rules)
+        ]
 
 
 @dataclass

@@ -1029,8 +1029,7 @@ class Jobscript(JSONLike):
         cfg_invocation = self._app.config._file.get_invocation(
             self._app.config._config_key
         )
-        env_setup = cfg_invocation["environment_setup"]
-        if env_setup:
+        if (env_setup := cfg_invocation["environment_setup"]):
             env_setup = indent(env_setup.strip(), shell.JS_ENV_SETUP_INDENT)
             env_setup += "\n\n" + shell.JS_ENV_SETUP_INDENT
         else:
