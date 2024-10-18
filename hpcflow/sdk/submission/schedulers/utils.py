@@ -1,11 +1,18 @@
 """
 Helper for running a subprocess.
 """
-
+from __future__ import annotations
 import subprocess
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    import logging
 
 
-def run_cmd(cmd, logger=None):
+def run_cmd(
+    cmd: str | Sequence[str], logger: logging.Logger | None = None
+) -> tuple[str, str]:
     """Execute a command and return stdout, stderr as strings."""
     if logger:
         logger.debug(f"running shell command: {cmd}")
