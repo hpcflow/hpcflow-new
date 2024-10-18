@@ -548,7 +548,7 @@ class SchemaInput(SchemaParameter):
         """
         The default value of the input.
         """
-        if (single_data := self.single_labelled_data):
+        if single_data := self.single_labelled_data:
             if "default_value" in single_data:
                 return single_data["default_value"]
             else:
@@ -1062,7 +1062,7 @@ class ValueSequence(JSONLike):
         if self._workflow:
             return self._workflow
         elif self._element_set:
-            if (tmpl := self._element_set.task_template.workflow_template):
+            if tmpl := self._element_set.task_template.workflow_template:
                 return tmpl.workflow
         return None
 
@@ -1428,11 +1428,11 @@ class AbstractInputValue(JSONLike):
         if self._workflow:
             return self._workflow
         if self._element_set:
-            if (w_tmpl := self._element_set.task_template.workflow_template):
+            if w_tmpl := self._element_set.task_template.workflow_template:
                 return w_tmpl.workflow
         if self._schema_input:
-            if (t_tmpl := self._schema_input.task_schema.task_template):
-                if (w_tmpl := t_tmpl.workflow_template):
+            if t_tmpl := self._schema_input.task_schema.task_template:
+                if w_tmpl := t_tmpl.workflow_template:
                     return w_tmpl.workflow
         return None
 

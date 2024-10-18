@@ -309,7 +309,7 @@ class InputFileGenerator(JSONLike):
         Write the script if it is specified as a snippet script, otherwise we assume
         the script already exists in the working directory.
         """
-        if (snip_path := action.get_snippet_script_path(self.script, env_spec)):
+        if snip_path := action.get_snippet_script_path(self.script, env_spec):
             with Path(snip_path.name).open("wt", newline="\n") as fp:
                 fp.write(self.compose_source(snip_path))
 
@@ -514,7 +514,7 @@ class OutputFileParser(JSONLike):
 
         # write the script if it is specified as a snippet script, otherwise we assume
         # the script already exists in the working directory:
-        if (snip_path := action.get_snippet_script_path(self.script, env_spec)):
+        if snip_path := action.get_snippet_script_path(self.script, env_spec):
             with Path(snip_path.name).open("wt", newline="\n") as fp:
                 fp.write(self.compose_source(snip_path))
 

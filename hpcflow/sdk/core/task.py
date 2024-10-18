@@ -385,7 +385,7 @@ class ElementSet(JSONLike):
                 raise MalformedNestingOrderPath(k, self._ALLOWED_NESTING_PATHS)
 
         inp_paths = [in_.normalised_inputs_path for in_ in self.inputs]
-        if (dup_paths := get_duplicate_items(inp_paths)):
+        if dup_paths := get_duplicate_items(inp_paths):
             raise TaskTemplateMultipleInputValues(
                 f"The following inputs parameters are associated with multiple input value "
                 f"definitions: {dup_paths!r}."
@@ -393,15 +393,16 @@ class ElementSet(JSONLike):
 
         inp_seq_paths = [
             cast(str, seq.normalised_inputs_path)
-            for seq in self.sequences if seq.input_type
+            for seq in self.sequences
+            if seq.input_type
         ]
-        if (dup_paths := get_duplicate_items(inp_seq_paths)):
+        if dup_paths := get_duplicate_items(inp_seq_paths):
             raise TaskTemplateMultipleInputValues(
                 f"The following input parameters are associated with multiple sequence "
                 f"value definitions: {dup_paths!r}."
             )
 
-        if (inp_and_seq := set(inp_paths).intersection(inp_seq_paths)):
+        if inp_and_seq := set(inp_paths).intersection(inp_seq_paths):
             raise TaskTemplateMultipleInputValues(
                 f"The following input parameters are specified in both the `inputs` and "
                 f"`sequences` lists: {list(inp_and_seq)!r}, but must be specified in at "
@@ -421,12 +422,12 @@ class ElementSet(JSONLike):
 
     def _validate_against_template(self) -> None:
         expected_types = self.task_template.all_schema_input_types
-        if (unexpected_types := set(self.input_types) - expected_types):
+        if unexpected_types := set(self.input_types) - expected_types:
             raise TaskTemplateUnexpectedInput(unexpected_types)
 
         defined_inp_types = set(self.input_types)
         for seq in self.sequences:
-            if (inp_type := seq.labelled_type):
+            if inp_type := seq.labelled_type:
                 if inp_type not in expected_types:
                     raise TaskTemplateUnexpectedSequenceInput(
                         inp_type, expected_types, seq
@@ -1024,12 +1025,14 @@ class Task(JSONLike):
                 output_data_indices[path] = [
                     # iteration_idx, action_idx, and EAR_idx are not known until
                     # `initialise_EARs`:
-                    workflow._add_unset_parameter_data({
-                        "type": "EAR_output",
-                        # "task_insert_ID": self.insert_ID,
-                        # "element_idx": idx,
-                        # "run_idx": 0,
-                    })
+                    workflow._add_unset_parameter_data(
+                        {
+                            "type": "EAR_output",
+                            # "task_insert_ID": self.insert_ID,
+                            # "element_idx": idx,
+                            # "run_idx": 0,
+                        }
+                    )
                     for idx in range(*local_element_idx_range)
                 ]
 
@@ -2051,7 +2054,7 @@ class WorkflowTask(AppAware):
         # missing sources below:
         unsourced_inputs = sorted(req_types - set(element_set.input_sources.keys()))
 
-        if (extra_types := {k for k, v in all_stats.items() if v.is_extra}):
+        if extra_types := {k for k, v in all_stats.items() if v.is_extra}:
             extra_str = ", ".join(f"{i!r}" for i in extra_types)
             raise ExtraInputs(
                 message=(
@@ -2654,7 +2657,7 @@ class WorkflowTask(AppAware):
         nesting_order: dict[str, float] | None = None,
         element_sets: list[ElementSet] | None = None,
         sourceable_elem_iters: list[int] | None = None,
-        propagate_to: dict[str, ElementPropagation] | None = None
+        propagate_to: dict[str, ElementPropagation] | None = None,
     ) -> list[int] | None:
         """Add more elements to this task.
 
@@ -2902,9 +2905,7 @@ class WorkflowTask(AppAware):
             default=default,
         )
 
-    def _paths_to_PV_classes(
-        self, *paths: str | None
-    ) -> dict[str, type[ParameterValue]]:
+    def _paths_to_PV_classes(self, *paths: str | None) -> dict[str, type[ParameterValue]]:
         """Return a dict mapping dot-delimited string input paths to `ParameterValue`
         classes."""
 
@@ -2940,10 +2941,7 @@ class WorkflowTask(AppAware):
                                 params[key_0] = j2.parameter._value_class
 
             if path_split[2:]:
-                pv_classes = {
-                    cls._typ: cls
-                    for cls in ParameterValue.__subclasses__()
-                }
+                pv_classes = {cls._typ: cls for cls in ParameterValue.__subclasses__()}
 
             # now proceed by searching for sub-parameters in each ParameterValue
             # sub-class:
@@ -2953,11 +2951,11 @@ class WorkflowTask(AppAware):
                 key_i = ".".join(child)
                 if key_i in params:
                     continue
-                if (parent_param := params.get(".".join(parent))):
+                if parent_param := params.get(".".join(parent)):
                     for attr_name, sub_type in parent_param._sub_parameters.items():
                         if part_i == attr_name:
                             # find the class with this `typ` attribute:
-                            if (cls := pv_classes.get(sub_type)):
+                            if cls := pv_classes.get(sub_type):
                                 params[key_i] = cls
 
         return params
@@ -3192,11 +3190,14 @@ class WorkflowTask(AppAware):
                     # search for unset parents in `relevant_data`:
                     assert path is not None
                     for parent_i_span in range(
-                            len(path_split := path.split(".")) - 1, 1, -1):
+                        len(path_split := path.split(".")) - 1, 1, -1
+                    ):
                         parent_path_i = ".".join(path_split[0:parent_i_span])
                         if not (relevant_par := relevant_data.get(parent_path_i)):
                             continue
-                        if not (par_is_set := relevant_par["is_set"]) or any(not i for i in cast(list, par_is_set)):
+                        if not (par_is_set := relevant_par["is_set"]) or any(
+                            not i for i in cast(list, par_is_set)
+                        ):
                             val_cls_method = relevant_par["value_class_method"]
                             path_is_multi = relevant_par["is_multi"]
                             path_is_set = relevant_par["is_set"]
@@ -3248,7 +3249,7 @@ class WorkflowTask(AppAware):
     ):
         """Get element data from the persistent store."""
         path_split = [] if not path else path.split(".")
-        
+
         if not (relevant_paths := self.__get_relevant_paths(data_index, path_split)):
             if raise_on_missing:
                 # TODO: custom exception?

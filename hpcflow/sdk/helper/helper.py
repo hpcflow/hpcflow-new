@@ -32,7 +32,7 @@ def kill_proc_tree(
     sig=signal.SIGTERM,
     include_parent: bool = True,
     timeout: float | None = None,
-    on_terminate: Callable[[psutil.Process], object] | None = None
+    on_terminate: Callable[[psutil.Process], object] | None = None,
 ) -> tuple[list[psutil.Process], list[psutil.Process]]:
     """Kill a process tree (including grandchildren) with signal
     `sig` and return a (gone, still_alive) tuple.
@@ -79,7 +79,8 @@ def get_helper_watch_list(app: BaseApp):
     watch_file_path = get_watcher_file_path(app)
     if watch_file_path.exists():
         return MonitorController.parse_watch_workflows_file(
-            watch_file_path, get_helper_logger(app))
+            watch_file_path, get_helper_logger(app)
+        )
     return None
 
 
@@ -182,7 +183,7 @@ def stop_helper(app: BaseApp, return_logger: bool = False):
     Stop the helper process.
     """
     logger = get_helper_logger(app)
-    if (pid_info := get_helper_PID(app)):
+    if pid_info := get_helper_PID(app):
         logger.info("Stopping helper.")
         pid, pid_file = pid_info
         kill_proc_tree(pid=pid)
@@ -202,7 +203,7 @@ def clear_helper(app: BaseApp):
     try:
         stop_helper(app)
     except psutil.NoSuchProcess:
-        if (pid_info := get_helper_PID(app)):
+        if pid_info := get_helper_PID(app):
             pid_file = pid_info[1]
             print(f"Removing file {pid_file!r}")
             pid_file.unlink()
@@ -243,7 +244,7 @@ def helper_timeout(
     """Kill the helper due to running duration exceeding the timeout."""
 
     logger.info(f"Helper exiting due to timeout ({timeout!r}).")
-    if (pid_info := get_helper_PID(app)):
+    if pid_info := get_helper_PID(app):
         pid_file = pid_info[1]
         logger.info(f"Deleting PID file: {pid_file!r}.")
         pid_file.unlink()

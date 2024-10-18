@@ -286,12 +286,12 @@ class Command(JSONLike):
         # deal with specified double-quoted arguments first if it exists:
         for quote_arg in doubled_quoted_args or ():
             quote_pat = r'.*({quote_arg}="(.*)").*'.format(quote_arg=quote_arg)
-            if (match := re.match(quote_pat, args_str)):
+            if match := re.match(quote_pat, args_str):
                 quote_str, quote_contents = match.groups()
                 args_str = args_str.replace(quote_str, "")
                 kwargs[quote_arg] = quote_contents
 
-        if (args_str := args_str.strip().strip(",")):
+        if args_str := args_str.strip().strip(","):
             for i in args_str.split(","):
                 name_i, value_i = map(str.strip, i.split("="))
                 kwargs[name_i] = value_i

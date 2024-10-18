@@ -820,8 +820,7 @@ class ElementActionRun(AppAware):
                 dump_path = self.action.get_param_dump_file_path_HDF5(js_idx, js_act_idx)
                 with h5py.File(dump_path, mode="w") as h5file:
                     for k, v in in_vals.items():
-                        cast(ParameterValue, v).dump_to_HDF5_group(
-                            h5file.create_group(k))
+                        cast(ParameterValue, v).dump_to_HDF5_group(h5file.create_group(k))
 
         # write the script if it is specified as a app data script, otherwise we assume
         # the script already exists in the working directory:
@@ -845,7 +844,7 @@ class ElementActionRun(AppAware):
                     file_data: dict[str, Any] = json.load(f)
                     for param_name, param_dat in file_data.items():
                         param_id = cast(int, self.data_idx[f"outputs.{param_name}"])
-                        if (param_cls := parameters.get(param_name)._force_value_class()):
+                        if param_cls := parameters.get(param_name)._force_value_class():
                             param_cls.save_from_JSON(param_dat, param_id, self.workflow)
                         else:
                             # try to save as a primitive:
@@ -857,7 +856,7 @@ class ElementActionRun(AppAware):
                 load_path = self.action.get_param_load_file_path_HDF5(js_idx, js_act_idx)
                 with h5py.File(load_path, mode="r") as h5file:
                     for param_name, h5_grp in h5file.items():
-                        if (param_cls := parameters.get(param_name)._force_value_class()):
+                        if param_cls := parameters.get(param_name)._force_value_class():
                             param_id = cast(int, self.data_idx[f"outputs.{param_name}"])
                             param_cls.save_from_HDF5_group(
                                 h5_grp, param_id, self.workflow
@@ -1186,7 +1185,7 @@ class ActionScope(JSONLike):
         #: Any provided extra keyword arguments.
         self.kwargs = {k: v for k, v in kwargs.items() if v is not None}
 
-        if (bad_keys := set(kwargs.keys()) - ACTION_SCOPE_ALLOWED_KWARGS[self.typ.name]):
+        if bad_keys := set(kwargs.keys()) - ACTION_SCOPE_ALLOWED_KWARGS[self.typ.name]:
             raise TypeError(
                 f"The following keyword arguments are unknown for ActionScopeType "
                 f"{self.typ.name}: {bad_keys}."
@@ -1837,7 +1836,9 @@ class Action(JSONLike):
         commands: list[Command] | None = None,
     ) -> ActionEnvironment:
         possible = [
-            env for env in self.environments if env.scope and env.scope.typ in relevant_scopes
+            env
+            for env in self.environments
+            if env.scope and env.scope.typ in relevant_scopes
         ]
         if not possible:
             if input_file_generator:
@@ -2352,7 +2353,8 @@ class Action(JSONLike):
                         k_idx = schema_data_idx[key]
                         # add any associated sub-parameters:
                         sub_param_idx.update(
-                            (k, v) for k, v in schema_data_idx.items()
+                            (k, v)
+                            for k, v in schema_data_idx.items()
                             if k.startswith(f"{key}.")  # sub-parameter (note dot)
                         )
                     else:
@@ -2458,7 +2460,8 @@ class Action(JSONLike):
         # provided:
         for ifg in self.input_file_generators:
             if typ in (inp.typ for inp in ifg.inputs) and (
-                    ifg.input_file not in provided_files):
+                ifg.input_file not in provided_files
+            ):
                 return True
 
         # typ is required if used in any output file parser
@@ -2468,12 +2471,17 @@ class Action(JSONLike):
     def test_rules(self, element_iter: ElementIteration) -> tuple[bool, list[int]]:
         """Test all rules against the specified element iteration."""
         action_valid = all(
-            rule.test(element_iteration=element_iter) for rule in self.rules)
-        commands_idx = [
-            cmd_idx
-            for cmd_idx, cmd in enumerate(self.commands)
-            if all(rule.test(element_iteration=element_iter) for rule in cmd.rules)
-        ] if action_valid else []
+            rule.test(element_iteration=element_iter) for rule in self.rules
+        )
+        commands_idx = (
+            [
+                cmd_idx
+                for cmd_idx, cmd in enumerate(self.commands)
+                if all(rule.test(element_iteration=element_iter) for rule in cmd.rules)
+            ]
+            if action_valid
+            else []
+        )
         return action_valid, commands_idx
 
     def get_required_executables(self) -> tuple[str, ...]:

@@ -59,7 +59,7 @@ class _ElementPrefixedParameter(AppAware):
                 f"{self.prefixed_names_unlabelled_str}."
             )
 
-        if (labels := self.prefixed_names_unlabelled.get(name)):
+        if labels := self.prefixed_names_unlabelled.get(name):
             # is multiple; return a dict of `ElementParameter`s
             return {
                 label_i: self._app.ElementParameter(
@@ -813,7 +813,7 @@ class ElementIteration(AppAware):
         value: ParamSource | list[ParamSource], filter_type: str
     ) -> ParamSource | list[ParamSource] | None:
         if isinstance(value, list):
-            if (sources := [src for src in value if src["type"] == filter_type]):
+            if sources := [src for src in value if src["type"] == filter_type]:
                 return sources
         else:
             if value["type"] == filter_type:
@@ -921,7 +921,7 @@ class ElementIteration(AppAware):
                 if (path or "").startswith(key):
                     # `path` uses labelled type, so no need to convert to non-labelled
                     continue
-                if (lookup_val := single_label_lookup.get(key)):
+                if lookup_val := single_label_lookup.get(key):
                     data_idx[lookup_val] = data_idx.pop(key)
 
         return self.task._get_merged_parameter_data(
@@ -957,21 +957,25 @@ class ElementIteration(AppAware):
         out: list[int]
         if self.action_runs:
             EAR_IDs_set = frozenset(self.EAR_IDs_flat)
-            out = sorted({
-                EAR_ID
-                for ear in self.action_runs
-                for EAR_ID in ear.get_EAR_dependencies()
-                if EAR_ID not in EAR_IDs_set
-            })
+            out = sorted(
+                {
+                    EAR_ID
+                    for ear in self.action_runs
+                    for EAR_ID in ear.get_EAR_dependencies()
+                    if EAR_ID not in EAR_IDs_set
+                }
+            )
         else:
             # if an "input-only" task schema, then there will be no action runs, but the
             # ElementIteration can still depend on other EARs if inputs are sourced from
             # upstream tasks:
-            out = sorted({
-                src_i["EAR_ID"]
-                for src in self.get_parameter_sources(typ="EAR_output").values()
-                for src_i in (src if isinstance(src, list) else [src])
-            })
+            out = sorted(
+                {
+                    src_i["EAR_ID"]
+                    for src in self.get_parameter_sources(typ="EAR_output").values()
+                    for src_i in (src if isinstance(src, list) else [src])
+                }
+            )
 
         if as_objects:
             return self.workflow.get_EARs_from_IDs(out)
@@ -1059,9 +1063,11 @@ class ElementIteration(AppAware):
         Dependencies may come from either elements from upstream tasks, or from locally
         defined inputs/sequences/defaults from upstream tasks."""
 
-        out_set = set(self.workflow.get_task_IDs_from_element_IDs(
-            self.get_element_dependencies(as_objects=False)
-        ))
+        out_set = set(
+            self.workflow.get_task_IDs_from_element_IDs(
+                self.get_element_dependencies(as_objects=False)
+            )
+        )
         for i in self.get_input_dependencies().values():
             out_set.add(i["task_insert_ID"])
 
@@ -1556,7 +1562,7 @@ class Element(AppAware):
         """
         Get the value of a sequence that applies.
         """
-        
+
         if not (seq := self.element_set.get_sequence_from_path(sequence_path)):
             raise ValueError(
                 f"No sequence with path {sequence_path!r} in this element's originating "

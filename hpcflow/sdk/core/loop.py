@@ -602,7 +602,7 @@ class WorkflowLoop(AppAware):
 
                 for inp in task.template.all_schema_inputs:
                     is_inp_task = False
-                    if (iter_dat := self.iterable_parameters.get(inp.typ)):
+                    if iter_dat := self.iterable_parameters.get(inp.typ):
                         is_inp_task = task.insert_ID == iter_dat["input_task"]
 
                     inp_key = f"inputs.{inp.typ}"

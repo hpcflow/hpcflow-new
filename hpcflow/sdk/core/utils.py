@@ -451,7 +451,8 @@ def write_JSON_file(obj, path: str | Path) -> None:
 
 
 def get_item_repeat_index(
-    lst: Sequence[T], *,
+    lst: Sequence[T],
+    *,
     distinguish_singular: bool = False,
     item_callable: Callable[[T], Hashable] | None = None,
 ):
@@ -704,12 +705,16 @@ def reshape(lst: Sequence[T], lens: Sequence[Sequence[int]]) -> list[TList[T]]:
 
 
 @overload
-def remap(lst: list[int], mapping_func: Callable[[Sequence[int]], Sequence[T]]) -> list[T]:
+def remap(
+    lst: list[int], mapping_func: Callable[[Sequence[int]], Sequence[T]]
+) -> list[T]:
     ...
 
 
 @overload
-def remap(lst: list[list[int]], mapping_func: Callable[[Sequence[int]], Sequence[T]]) -> list[list[T]]:
+def remap(
+    lst: list[list[int]], mapping_func: Callable[[Sequence[int]], Sequence[T]]
+) -> list[list[T]]:
     ...
 
 
@@ -850,7 +855,7 @@ _PARAM_SPLIT_RE = re.compile(r"((?:\w|\.)+)(?:\[(\w+)\])?")
 
 def split_param_label(param_path: str) -> tuple[str, str] | tuple[None, None]:
     """Split a parameter path into the path and the label, if present."""
-    if (match := _PARAM_SPLIT_RE.match(param_path)):
+    if match := _PARAM_SPLIT_RE.match(param_path):
         return match[1], match[2]
     else:
         return None, None

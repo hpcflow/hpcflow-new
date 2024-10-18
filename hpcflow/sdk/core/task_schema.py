@@ -174,7 +174,7 @@ class TaskSchema(JSONLike):
                 for preset in self.environment_presets.values()
                 for preset_name in preset
             }
-            if (bad_envs := preset_envs - env_names):
+            if bad_envs := preset_envs - env_names:
                 raise EnvironmentPresetUnknownEnvironmentError(self.name, bad_envs)
 
         # if version is not None:  # TODO: this seems fragile

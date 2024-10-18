@@ -2371,9 +2371,7 @@ def test_path_to_PV_classes(path_to_PV_classes_workflow: Workflow):
 
 
 def test_path_to_PV_classes_sub_data(path_to_PV_classes_workflow: Workflow):
-    assert path_to_PV_classes_workflow.tasks.t1._paths_to_PV_classes(
-        "inputs.p1c.a"
-    ) == {
+    assert path_to_PV_classes_workflow.tasks.t1._paths_to_PV_classes("inputs.p1c.a") == {
         "inputs.p1c": P1,
     }
 

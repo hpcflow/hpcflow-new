@@ -1867,7 +1867,7 @@ class PersistentStore(
         tasks_new: list[AnySTask] = []
         for task_i in tasks:
             # consider pending element IDs:
-            if (pend_elems := self._pending.add_elem_IDs.get(task_i.id_)):
+            if pend_elems := self._pending.add_elem_IDs.get(task_i.id_):
                 task_i = task_i.append_element_IDs(pend_elems)
             tasks_new.append(task_i)
         return tasks_new
@@ -1881,17 +1881,19 @@ class PersistentStore(
             if "num_added_iterations" not in loop_i:
                 loop_i["num_added_iterations"] = 1
             # consider pending changes to num added iterations:
-            if (pend_num_iters := self._pending.update_loop_num_iters.get(id_)):
+            if pend_num_iters := self._pending.update_loop_num_iters.get(id_):
                 loop_i["num_added_iterations"] = pend_num_iters
             # consider pending change to parents:
-            if (pend_parents := self._pending.update_loop_parents.get(id_)):
+            if pend_parents := self._pending.update_loop_parents.get(id_):
                 loop_i["parents"] = pend_parents
 
             loops_new[id_] = loop_i
         return loops_new
 
     @staticmethod
-    def __split_pending(ids: Iterable[int], all_pending: Mapping[int, Any]) -> tuple[tuple[int, ...], set[int], set[int]]:
+    def __split_pending(
+        ids: Iterable[int], all_pending: Mapping[int, Any]
+    ) -> tuple[tuple[int, ...], set[int], set[int]]:
         id_all = tuple(ids)
         id_set = set(id_all)
         id_pers = id_set.difference(all_pending)
@@ -2004,7 +2006,7 @@ class PersistentStore(
         for elem_i in (elems[id_] for id_ in ids):
             # consider pending iteration IDs:
             # TODO: does this consider pending iterations from new loop iterations?
-            if (pend_iters := self._pending.add_elem_iter_IDs.get(elem_i.id_)):
+            if pend_iters := self._pending.add_elem_iter_IDs.get(elem_i.id_):
                 elem_i = elem_i.append_iteration_IDs(pend_iters)
             elems_new.append(elem_i)
 
@@ -2031,11 +2033,11 @@ class PersistentStore(
         # order as requested:
         for iter_i in (iters[id_] for id_ in ids):
             # consider pending EAR IDs:
-            if (pend_EARs := self._pending.add_elem_iter_EAR_IDs.get(iter_i.id_)):
+            if pend_EARs := self._pending.add_elem_iter_EAR_IDs.get(iter_i.id_):
                 iter_i = iter_i.append_EAR_IDs(pend_EARs)
 
             # consider pending loop idx
-            if (pend_loop_idx := self._pending.update_loop_indices.get(iter_i.id_)):
+            if pend_loop_idx := self._pending.update_loop_indices.get(iter_i.id_):
                 iter_i = iter_i.update_loop_idx(pend_loop_idx)
 
             # consider pending `EARs_initialised`:

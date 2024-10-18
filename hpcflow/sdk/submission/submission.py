@@ -628,7 +628,7 @@ class Submission(JSONLike):
             return
         for js_indices, sched in self.get_unique_schedulers().items():
             # filter by active jobscripts:
-            if (js_idx := [i[1] for i in js_indices if i[1] in act_js]):
+            if js_idx := [i[1] for i in js_indices if i[1] in act_js]:
                 print(
                     f"Cancelling jobscripts {js_idx!r} of submission {self.index} of "
                     f"workflow {self.workflow.name!r}."

@@ -170,7 +170,7 @@ class Executable(JSONLike):
             inst
             for inst in self.instances
             if (parallel_mode is None or inst.parallel_mode == parallel_mode)
-                and (num_cores is None or num_cores in inst.num_cores)
+            and (num_cores is None or num_cores in inst.num_cores)
         ]
 
 
@@ -243,5 +243,5 @@ class Environment(JSONLike):
         return f"{self.__class__.__name__}({self.name!r})"
 
     def _validate(self):
-        if (dup_labels := get_duplicate_items(i.label for i in self.executables)):
+        if dup_labels := get_duplicate_items(i.label for i in self.executables):
             raise DuplicateExecutableError(dup_labels)

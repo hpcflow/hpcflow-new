@@ -3744,8 +3744,8 @@ class BaseApp(metaclass=Singleton):
                 f"source directory: {self.demo_data_dir!r}."
             )
             # `config.demo_data_dir` not set, so try to use `app.demo_data_dir`:
-            
-            if (package := self.demo_data_dir):
+
+            if package := self.demo_data_dir:
                 try:
                     with get_file_context(package, src_fn) as path:
                         out = path
