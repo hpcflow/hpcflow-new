@@ -1596,18 +1596,12 @@ class Jobscript(JSONLike):
         func_invoc_lines = dedent(
             """\
                 import pprint
-                print(f"{func=!r}")
                 if not run.action.is_OFP and run.action.script_data_out_has_direct:
                     outputs = func(**func_kwargs)
-                    print("outputs (not is_OFP and script_data_out_has_direct)")
-                    pprint.pp(outputs)                    
                 elif run.action.is_OFP:
                     out_name = run.action.output_file_parsers[0].output.typ
                     outputs = {out_name: func(**func_kwargs)}
-                    print("outputs (else is_OFP)")
-                    pprint.pp(outputs)
                 else:
-                    print("no outputs (else)")
                     outputs = {}
                     func(**func_kwargs)
             """
@@ -1740,7 +1734,6 @@ class Jobscript(JSONLike):
                             # retrieve script inputs:
                             get_ins_tic = time.perf_counter()
                             func_kwargs = run.get_py_script_func_kwargs()
-                            print(f"func_kwargs: {{func_kwargs}}")
                             get_ins_toc = time.perf_counter()
 
                             script_idx = script_indices[block_idx][block_act_idx]
