@@ -1843,17 +1843,11 @@ class Action(JSONLike):
             app_caps = self.app.package_name.upper()
             run_ID_var = "$RUN_ID"
 
-            # note: double quotes; workflow path may include spaces:
-            script_name_var = f'"${app_caps}_RUN_SCRIPT_NAME"'
-            script_name_no_ext_var = f'"${app_caps}_RUN_SCRIPT_NAME_NO_EXT"'
-            script_dir_var = f'"${app_caps}_RUN_SCRIPT_DIR"'
-            script_path_var = f'"${app_caps}_RUN_SCRIPT_PATH"'
-
             script_cmd_vars = {
-                "script_name": script_name_var,
-                "script_name_no_ext": script_name_no_ext_var,
-                "script_dir": script_dir_var,
-                "script_path": script_path_var,
+                "script_name": f"${app_caps}_RUN_SCRIPT_NAME",
+                "script_name_no_ext": f"${app_caps}_RUN_SCRIPT_NAME_NO_EXT",
+                "script_dir": f"${app_caps}_RUN_SCRIPT_DIR",
+                "script_path": f"${app_caps}_RUN_SCRIPT_PATH",
             }
 
             for ifg in self.input_file_generators:
@@ -1911,9 +1905,9 @@ class Action(JSONLike):
                 variables = script_cmd_vars if self.script else {}
                 args = []
                 fn_args = (
-                    r"${HPCFLOW_JS_IDX}",
-                    r"${HPCFLOW_BLOCK_IDX}",
-                    r"${HPCFLOW_BLOCK_ACT_IDX}",
+                    f"${{{app_caps}_JS_IDX}}",
+                    f"${{{app_caps}_BLOCK_IDX}}",
+                    f"${{{app_caps}_BLOCK_ACT_IDX}}",
                 )
                 for fmt in self.script_data_in_grouped:
                     if fmt == "json":
