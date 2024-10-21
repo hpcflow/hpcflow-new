@@ -51,6 +51,23 @@ class ObjectCache:
     @classmethod
     @TimeIt.decorator
     def _get_dependencies(cls, workflow):
+        def _get_recursive_deps(elem_id, seen_ids=None):
+            if seen_ids is None:
+                seen_ids = [elem_id]
+            elif elem_id in seen_ids:
+                # stop recursion
+                return set()
+            else:
+                seen_ids.append(elem_id)
+            return set(elem_elem_dependents[elem_id]).union(
+                [
+                    j
+                    for i in elem_elem_dependents[elem_id]
+                    for j in _get_recursive_deps(i, seen_ids)
+                    if j != elem_id
+                ]
+            )
+
         num_iters = workflow.num_element_iterations
         num_elems = workflow.num_elements
         num_runs = workflow.num_EARs
@@ -137,12 +154,8 @@ class ObjectCache:
 
         # for each element, which elements depend on it (recursively)?
         elem_elem_dependents_rec = defaultdict(set)
-        for k in list(elem_elem_dependents):
-            for i in elem_elem_dependents[k]:
-                elem_elem_dependents_rec[k].add(i)
-                elem_elem_dependents_rec[k].update(
-                    {m for m in elem_elem_dependents[i] if m != k}
-                )
+        for i in list(elem_elem_dependents):
+            elem_elem_dependents_rec[i] = _get_recursive_deps(i)
 
         # add missing keys:
         for k in range(num_elems):

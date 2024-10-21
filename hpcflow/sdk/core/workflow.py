@@ -3232,7 +3232,7 @@ class Workflow:
                     )
                     for k, v in env.items():
                         if k.startswith(app_caps):
-                            self.app.submission_logger.debug(f"{k} = {v}")
+                            self.app.submission_logger.debug(f"{k} = {v!r}")
 
                     exe = self.app.Executor(cmd, env, self.app.package_name)
                     port = exe.start_zmq_server()  # start the server so we know the port

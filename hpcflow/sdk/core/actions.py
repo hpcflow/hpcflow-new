@@ -715,7 +715,12 @@ class ElementActionRun:
                 with h5py.File(dump_path, mode="w") as f:
                     for k, v in in_vals.items():
                         grp_k = f.create_group(k)
-                        v.dump_to_HDF5_group(grp_k)
+                        try:
+                            v.dump_to_HDF5_group(grp_k)
+                        except AttributeError:
+                            # probably an element group (i.e. v is a list of
+                            # `ParameterValue` objects):
+                            v[0].dump_element_group_to_HDF5_group(v, grp_k)
 
     def _param_save(self, block_act_key: Tuple[int, int, int]):
         """Save script-generated parameters that are stored within the supported script
