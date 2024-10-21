@@ -148,7 +148,7 @@ class DependencyCache:
 
         # for each element, which elements depend on it (recursively)?
         elem_elem_dependents_rec: defaultdict[int, set[int]] = defaultdict(set)
-        for k in list(elem_elem_dependents):
+        for k in tuple(elem_elem_dependents):
             # NB: code below modifies elem_elem_dependents during this loop;
             # copy above is mandatory!
             for i in elem_elem_dependents[k]:

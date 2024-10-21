@@ -231,9 +231,7 @@ class SlurmPosix(QueuedScheduler):
             try:
                 part = all_parts[resources.SLURM_partition]
             except KeyError:
-                raise UnknownSLURMPartitionError(
-                    resources.SLURM_partition, all_parts.keys()
-                )
+                raise UnknownSLURMPartitionError(resources.SLURM_partition, all_parts)
             # TODO: we when we support ParallelMode.HYBRID, these checks will have to
             # consider the total number of cores requested per node
             # (num_cores_per_node * num_threads)?

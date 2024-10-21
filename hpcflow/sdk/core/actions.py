@@ -801,13 +801,13 @@ class ElementActionRun(AppAware):
         import h5py  # type: ignore
 
         for fmt, ins in self.action.script_data_in_grouped.items():
+            in_vals: dict[str, ParameterValue] = self.get_input_values(inputs=ins, label_dict=False)
             if fmt == "json":
-                in_vals = self.get_input_values(inputs=ins, label_dict=False)
                 dump_path = self.action.get_param_dump_file_path_JSON(js_idx, js_act_idx)
                 in_vals_processed: dict[str, Any] = {}
                 for k, v in in_vals.items():
                     try:
-                        v = cast(ParameterValue, v).prepare_JSON_dump()
+                        v = v.prepare_JSON_dump()
                     except (AttributeError, NotImplementedError):
                         pass
                     in_vals_processed[k] = v
@@ -816,11 +816,10 @@ class ElementActionRun(AppAware):
                     json.dump(in_vals_processed, fp)
 
             elif fmt == "hdf5":
-                in_vals = self.get_input_values(inputs=ins, label_dict=False)
                 dump_path = self.action.get_param_dump_file_path_HDF5(js_idx, js_act_idx)
                 with h5py.File(dump_path, mode="w") as h5file:
                     for k, v in in_vals.items():
-                        cast(ParameterValue, v).dump_to_HDF5_group(h5file.create_group(k))
+                        v.dump_to_HDF5_group(h5file.create_group(k))
 
         # write the script if it is specified as a app data script, otherwise we assume
         # the script already exists in the working directory:
@@ -900,7 +899,7 @@ class ElementActionRun(AppAware):
         if self.action.script:
             self.write_source(js_idx=jobscript.index, js_act_idx=JS_action_idx)
 
-        command_lns = []
+        command_lns: list[str] = []
         env = jobscript.submission.environments.get(**env_spec)
         if env.setup:
             command_lns.extend(env.setup)
@@ -1185,7 +1184,7 @@ class ActionScope(JSONLike):
         #: Any provided extra keyword arguments.
         self.kwargs = {k: v for k, v in kwargs.items() if v is not None}
 
-        if bad_keys := set(kwargs.keys()) - ACTION_SCOPE_ALLOWED_KWARGS[self.typ.name]:
+        if bad_keys := set(kwargs) - ACTION_SCOPE_ALLOWED_KWARGS[self.typ.name]:
             raise TypeError(
                 f"The following keyword arguments are unknown for ActionScopeType "
                 f"{self.typ.name}: {bad_keys}."
@@ -1627,7 +1626,7 @@ class Action(JSONLike):
             # expand unlabelled-multiple inputs to multiple labelled inputs:
             multi_types = set(self.task_schema.multi_input_types)
             multis: dict[str, ScriptData] = {}
-            for k in list(all_params.keys()):
+            for k in tuple(all_params):
                 if k in multi_types:
                     k_fmt = all_params.pop(k)
                     for name in param_names:
@@ -2082,7 +2081,7 @@ class Action(JSONLike):
                 act_i._from_expand = True
                 inp_acts.append(act_i)
 
-            out_files = []
+            out_files: list[FileSpec] = []
             out_acts: list[Action] = []
             for ofp in self.output_file_parsers:
                 exe = "<<executable:python_script>>"
@@ -2106,7 +2105,7 @@ class Action(JSONLike):
                     ],
                     output_file_parsers=[ofp],
                     environments=[self.get_output_file_parser_action_env(ofp)],
-                    rules=list(self.rules) + ofp.get_action_rules(),
+                    rules=[*self.rules, *ofp.get_action_rules()],
                     script_pass_env_spec=ofp.script_pass_env_spec,
                     abortable=ofp.abortable,
                 )

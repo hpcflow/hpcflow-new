@@ -63,7 +63,7 @@ def make_schemas(
                 for out_i in outs_i[2:]
             ]
         cmd = hf.Command(
-            " ".join(f"echo $((<<parameter:{i}>> + 100))" for i in ins_i.keys()),
+            " ".join(f"echo $((<<parameter:{i}>> + 100))" for i in ins_i),
             stdout=stdout,
             stderr=stderr,
         )
@@ -169,7 +169,7 @@ def make_tasks(
             resources=res,
             nesting_order=nesting_orders.get(s_idx, {}),
             input_sources=input_sources.get(s_idx, None),
-            groups=list(groups.get(s_idx, [])),
+            groups=list(groups.get(s_idx, ())),
         )
         tasks.append(task)
     return tasks

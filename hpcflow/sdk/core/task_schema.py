@@ -821,32 +821,27 @@ class TaskSchema(JSONLike):
         """
         The input types to the schema.
         """
-        return list(j for input_i in self.inputs for j in input_i.all_labelled_types)
+        return [typ for inp in self.inputs for typ in inp.all_labelled_types]
 
     @property
     def output_types(self) -> list[str]:
         """
         The output types from the schema.
         """
-        return list(out.typ for out in self.outputs)
+        return [out.typ for out in self.outputs]
 
     @property
-    def provides_parameters(self) -> tuple[tuple[str, str], ...]:
+    def provides_parameters(self) -> Iterator[tuple[str, str]]:
         """
         The parameters that this schema provides.
         """
-        out = []
         for schema_inp in self.inputs:
-            for labelled_info in schema_inp.labelled_info():
-                prop_mode = labelled_info["propagation_mode"]
+            for label, prop_mode in schema_inp._simple_labelled_info:
                 if prop_mode is not ParameterPropagationMode.NEVER:
-                    out.append(
-                        (schema_inp.input_or_output, labelled_info["labelled_type"])
-                    )
+                    yield (schema_inp.input_or_output, label)
         for schema_out in self.outputs:
             if schema_out.propagation_mode is not ParameterPropagationMode.NEVER:
-                out.append((schema_out.input_or_output, schema_out.typ))
-        return tuple(out)
+                yield (schema_out.input_or_output, schema_out.typ)
 
     @property
     def task_template(self) -> TaskTemplate | None:

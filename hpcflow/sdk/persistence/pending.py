@@ -204,7 +204,7 @@ class PendingChanges(
         """Commit pending tasks to disk."""
         if self.add_tasks:
             tasks = self.store.get_tasks_by_IDs(self.add_tasks)
-            task_ids = set(self.add_tasks.keys())
+            task_ids = set(self.add_tasks)
             self.logger.debug(f"commit: adding pending tasks with IDs: {task_ids!r}")
             self.store._append_tasks(tasks)
             self.store.num_tasks_cache = None  # invalidate cache
@@ -220,7 +220,7 @@ class PendingChanges(
         if self.add_loops:
             # retrieve pending loops, including pending changes to num_added_iterations:
             loops = self.store.get_loops_by_IDs(self.add_loops)
-            loop_ids = set(self.add_loops.keys())
+            loop_ids = set(self.add_loops)
             self.logger.debug(f"commit: adding pending loops with indices {loop_ids!r}")
             self.store._append_loops(loops)
 
@@ -241,7 +241,7 @@ class PendingChanges(
         if self.add_submissions:
             # retrieve pending submissions:
             subs = self.store.get_submissions_by_ID(self.add_submissions)
-            sub_ids = set(self.add_submissions.keys())
+            sub_ids = set(self.add_submissions)
             self.logger.debug(
                 f"commit: adding pending submissions with indices {sub_ids!r}"
             )
@@ -279,7 +279,7 @@ class PendingChanges(
         """
         if self.add_elements:
             elems = self.store.get_elements(self.add_elements)
-            elem_ids = set(self.add_elements.keys())
+            elem_ids = set(self.add_elements)
             self.logger.debug(f"commit: adding pending elements with IDs: {elem_ids!r}")
             self.store._append_elements(elems)
             # pending iter IDs that belong to pending elements are now committed:
@@ -320,8 +320,8 @@ class PendingChanges(
         Commit pending element iterations to disk.
         """
         if self.add_elem_iters:
-            iters = self.store.get_element_iterations(self.add_elem_iters.keys())
-            iter_ids = set(self.add_elem_iters.keys())
+            iters = self.store.get_element_iterations(self.add_elem_iters)
+            iter_ids = set(self.add_elem_iters)
             self.logger.debug(
                 f"commit: adding pending element iterations with IDs: {iter_ids!r}"
             )
@@ -359,7 +359,7 @@ class PendingChanges(
         """
         if self.add_EARs:
             EARs = self.store.get_EARs(self.add_EARs)
-            EAR_ids = list(self.add_EARs.keys())
+            EAR_ids = list(self.add_EARs)
             self.logger.debug(f"commit: adding pending EARs with IDs: {EAR_ids!r}")
             self.store._append_EARs(EARs)
             self.store.num_EARs_cache = None  # invalidate cache
@@ -408,7 +408,7 @@ class PendingChanges(
                 f"{self.set_EAR_submission_indices!r}."
             )
             self.store._update_EAR_submission_indices(self.set_EAR_submission_indices)
-            for EAR_ID_i in self.set_EAR_submission_indices.keys():
+            for EAR_ID_i in self.set_EAR_submission_indices:
                 self.store.EAR_cache.pop(EAR_ID_i, None)  # invalidate cache
             self._clear_set_EAR_submission_indices()
 
@@ -471,13 +471,13 @@ class PendingChanges(
         """Make pending parameters persistent."""
         if self.add_parameters:
             params = self.store.get_parameters(self.add_parameters)
-            param_ids = list(self.add_parameters.keys())
+            param_ids = list(self.add_parameters)
             self.logger.debug(f"commit: adding pending parameters IDs: {param_ids!r}")
             self.store._append_parameters(params)
         self._clear_add_parameters()
 
         if self.set_parameters:
-            param_ids = list(self.set_parameters.keys())
+            param_ids = list(self.set_parameters)
             self.logger.debug(f"commit: setting values of parameter IDs {param_ids!r}.")
             self.store._set_parameter_values(self.set_parameters)
             for id_i in param_ids:
@@ -506,7 +506,7 @@ class PendingChanges(
     def commit_param_sources(self) -> None:
         """Make pending changes to parameter sources persistent."""
         if self.update_param_sources:
-            param_ids = list(self.update_param_sources.keys())
+            param_ids = list(self.update_param_sources)
             self.logger.debug(f"commit: updating sources of parameter IDs {param_ids!r}.")
             self.store._update_parameter_sources(self.update_param_sources)
             for id_i in param_ids:

@@ -233,7 +233,7 @@ def get_app_module_all() -> list[str]:
     """
     The list of all symbols exported by this module.
     """
-    return ["app"] + list(sdk_classes.keys()) + list(sdk_funcs)
+    return ["app", *sdk_classes, *sdk_funcs]
 
 
 def get_app_module_dir() -> Callable[[], list[str]]:
@@ -2113,7 +2113,7 @@ class BaseApp(metaclass=Singleton):
 
     def list_demo_workflows(self) -> tuple[str, ...]:
         """Return a list of demo workflow templates included in the app."""
-        return tuple(sorted(self._get_demo_workflows().keys()))
+        return tuple(sorted(self._get_demo_workflows()))
 
     @contextmanager
     def get_demo_workflow_template_file(
@@ -2458,7 +2458,7 @@ class BaseApp(metaclass=Singleton):
             if is_inactive:
                 line_date[ln_idx] = item["submit_time"]
 
-        ld_srt_idx = list(dict(sorted(line_date.items(), key=lambda i: i[1])).keys())
+        ld_srt_idx = list(dict(sorted(line_date.items(), key=lambda i: i[1])))
 
         if len(line_date) > max_inactive:
             # remove oldest inactive submissions:
@@ -3323,11 +3323,11 @@ class BaseApp(metaclass=Singleton):
                 "actions_compact",
             )
 
-        unknown_cols = set(columns) - set(allowed_cols.keys())
+        unknown_cols = set(columns).difference(allowed_cols)
         if unknown_cols:
             raise ValueError(
                 f"Unknown column names: {unknown_cols!r}. Allowed columns are "
-                f"{list(allowed_cols.keys())!r}."
+                f"{list(allowed_cols)!r}."
             )
 
         # TODO: add --filter option to filter by ID or name
@@ -3673,7 +3673,7 @@ class BaseApp(metaclass=Singleton):
 
     def list_demo_data_files(self) -> tuple[str, ...]:
         """List available example data files."""
-        return tuple(self.get_demo_data_files_manifest().keys())
+        return tuple(self.get_demo_data_files_manifest())
 
     def _get_demo_data_file_source_path(self, file_name: str) -> tuple[Path, bool, bool]:
         """

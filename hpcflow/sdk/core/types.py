@@ -131,7 +131,7 @@ class LabellingDescriptor(TypedDict):
     #: The propagation mode for the label.
     propagation_mode: ParameterPropagationMode
     #: The group containing the label.
-    group: str
+    group: str | None
     #: The default value for the label, if known.
     default_value: NotRequired[InputValue]
 

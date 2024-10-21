@@ -96,7 +96,7 @@ class Shell(ABC):
         if deps:
             return (
                 f'{workflow_app_alias} workflow $WK_PATH_ARG wait --jobscripts "{sub_idx}:'
-                + ",".join(str(i) for i in deps.keys())
+                + ",".join(str(i) for i in deps)
                 + '"'
             )
         else:

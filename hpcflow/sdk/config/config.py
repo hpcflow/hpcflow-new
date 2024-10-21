@@ -230,7 +230,7 @@ class Config:
         logger: logging.Logger,
         config_key: str | None,
         uid: str | None = None,
-        callbacks: dict[str, Sequence[GetterCallback]] | None = None,
+        callbacks: dict[str, tuple[GetterCallback, ...]] | None = None,
         variables: dict[str, str] | None = None,
         **overrides,
     ):
@@ -251,7 +251,7 @@ class Config:
         )
 
         # Callbacks are run on get:
-        self._get_callbacks: dict[str, Sequence[GetterCallback]] = {
+        self._get_callbacks: dict[str, tuple[GetterCallback, ...]] = {
             "task_schema_sources": (callback_file_paths,),
             "environment_sources": (callback_file_paths,),
             "parameter_sources": (callback_file_paths,),
@@ -267,7 +267,7 @@ class Config:
         }
 
         # Set callbacks are run on set:
-        self._set_callbacks: dict[str, Sequence[SetterCallback]] = {
+        self._set_callbacks: dict[str, tuple[SetterCallback, ...]] = {
             "task_schema_sources": (set_callback_file_paths, check_load_data_files),
             "environment_sources": (set_callback_file_paths, check_load_data_files),
             "parameter_sources": (set_callback_file_paths, check_load_data_files),
@@ -524,7 +524,7 @@ class Config:
 
     def _disable_callbacks(
         self, callbacks: Sequence[str]
-    ) -> tuple[dict[str, Sequence[GetterCallback]], dict[str, Sequence[SetterCallback]]]:
+    ) -> tuple[dict[str, tuple[GetterCallback, ...]], dict[str, tuple[SetterCallback, ...]]]:
         """
         Disable named get and set callbacks.
 
@@ -533,11 +533,11 @@ class Config:
         The original get and set callback dictionaries.
         """
         self._logger.info(f"disabling config callbacks: {callbacks!r}")
-        get_callbacks_tmp: dict[str, Sequence[GetterCallback]] = {
+        get_callbacks_tmp: dict[str, tuple[GetterCallback, ...]] = {
             k: tuple(cb for cb in v if cb.__name__ not in callbacks)
             for k, v in self._get_callbacks.items()
         }
-        set_callbacks_tmp: dict[str, Sequence[SetterCallback]] = {
+        set_callbacks_tmp: dict[str, tuple[SetterCallback, ...]] = {
             k: tuple(cb for cb in v if cb.__name__ not in callbacks)
             for k, v in self._set_callbacks.items()
         }
@@ -548,7 +548,7 @@ class Config:
         return (get_callbacks, set_callbacks)
 
     @contextlib.contextmanager
-    def _without_callbacks(self, *callbacks) -> Iterator[None]:
+    def _without_callbacks(self, *callbacks: str) -> Iterator[None]:
         """Context manager to temporarily exclude named get and set callbacks."""
         get_callbacks, set_callbacks = self._disable_callbacks(*callbacks)
         yield
@@ -589,9 +589,7 @@ class Config:
 
         def decorator(func: GetterCallback) -> GetterCallback:
             if name in self._get_callbacks:
-                self._get_callbacks[name] = tuple(
-                    list(self._get_callbacks[name]) + [func]
-                )
+                self._get_callbacks[name] = self._get_callbacks[name] + (func,)
             else:
                 self._get_callbacks[name] = (func,)
 
@@ -613,9 +611,7 @@ class Config:
 
         def decorator(func: SetterCallback) -> SetterCallback:
             if name in self._set_callbacks:
-                self._set_callbacks[name] = tuple(
-                    list(self._set_callbacks[name]) + [func]
-                )
+                self._set_callbacks[name] = self._set_callbacks[name] + (func,)
             else:
                 self._set_callbacks[name] = (func,)
 
@@ -629,7 +625,7 @@ class Config:
 
     @property
     def _all_keys(self) -> list[str]:
-        return [*self._configurable_keys, *self._meta_data.keys()]
+        return [*self._configurable_keys, *self._meta_data]
 
     @overload
     def get_all(

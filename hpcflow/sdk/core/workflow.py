@@ -2027,15 +2027,13 @@ class Workflow(AppAware):
     def get_all_parameters(self, **kwargs) -> list[StoreParameter]:
         """Retrieve all persistent parameters."""
         num_params = self._store._get_num_total_parameters()
-        id_lst = list(range(num_params))
-        return self._store.get_parameters(id_lst, **kwargs)
+        return self._store.get_parameters(range(num_params), **kwargs)
 
     @TimeIt.decorator
     def get_all_parameter_sources(self, **kwargs) -> list[ParamSource]:
         """Retrieve all persistent parameters sources."""
         num_params = self._store._get_num_total_parameters()
-        id_lst = list(range(num_params))
-        return self._store.get_parameter_sources(id_lst, **kwargs)
+        return self._store.get_parameter_sources(range(num_params), **kwargs)
 
     @TimeIt.decorator
     def get_all_parameter_data(self, **kwargs) -> dict[int, Any]:
@@ -2045,21 +2043,13 @@ class Workflow(AppAware):
             for i in self.get_all_parameters(**kwargs)
         }
 
-    @overload
-    def check_parameters_exist(self, id_lst: int) -> bool:
-        ...
-
-    @overload
-    def check_parameters_exist(self, id_lst: list[int]) -> list[bool]:
-        ...
-
-    def check_parameters_exist(self, id_lst: int | list[int]) -> bool | list[bool]:
+    def check_parameters_exist(self, id_lst: int | list[int]) -> bool:
         """
-        Check if parameters exist.
+        Check if all the parameters exist.
         """
         if isinstance(id_lst, int):
-            return self._store.check_parameters_exist([id_lst])[0]
-        return self._store.check_parameters_exist(id_lst)
+            return next(iter(self._store.check_parameters_exist([id_lst])))
+        return all(self._store.check_parameters_exist(id_lst))
 
     def _add_unset_parameter_data(self, source: ParamSource) -> int:
         # TODO: use this for unset files as well
@@ -3032,8 +3022,7 @@ class Workflow(AppAware):
             jobscript, this is a list of EAR IDs dependencies of that element.
 
         """
-        if not tasks:
-            tasks = list(range(self.num_tasks))
+        task_set = frozenset(tasks if tasks else range(self.num_tasks))
 
         if self._store.use_cache:
             # pre-cache parameter sources (used in `EAR.get_EAR_dependencies`):
@@ -3044,7 +3033,7 @@ class Workflow(AppAware):
 
         for task_iID, loop_idx_i in self.get_iteration_task_pathway():
             task = self.tasks.get(insert_ID=task_iID)
-            if task.index not in tasks:
+            if task.index not in task_set:
                 continue
             res, res_hash, res_map, EAR_map = generate_EAR_resource_map(task, loop_idx_i)
             jobscripts, _ = group_resource_map_into_jobscripts(res_map)
@@ -3064,7 +3053,7 @@ class Workflow(AppAware):
                 # task_elements: { JS_ELEM_IDX: [TASK_ELEM_IDX for each task insert ID]}
                 task_elements = {
                     js_elem_idx: [task_elem_idx]
-                    for js_elem_idx, task_elem_idx in enumerate(js_dat["elements"].keys())
+                    for js_elem_idx, task_elem_idx in enumerate(js_dat["elements"])
                 }
                 EAR_idx_arr_shape = (
                     len(task_actions),

@@ -1979,11 +1979,9 @@ class WorkflowTask(AppAware):
             source_tasks=self.workflow.tasks[: self.index],
         )
 
-        unreq_sources = set(element_set.input_sources.keys()) - set(
-            available_sources.keys()
-        )
+        unreq_sources = set(element_set.input_sources).difference(available_sources)
         if unreq_sources:
-            unreq_src_str = ", ".join(f"{i!r}" for i in unreq_sources)
+            unreq_src_str = ", ".join(f"{i!r}" for i in sorted(unreq_sources))
             raise UnrequiredInputSources(
                 message=(
                     f"The following input sources are not required but have been "
@@ -2052,7 +2050,7 @@ class WorkflowTask(AppAware):
         # sorting ensures that root parameters come before sub-parameters, which is
         # necessary when considering if we want to include a sub-parameter, when setting
         # missing sources below:
-        unsourced_inputs = sorted(req_types - set(element_set.input_sources.keys()))
+        unsourced_inputs = sorted(req_types - set(element_set.input_sources))
 
         if extra_types := {k for k, v in all_stats.items() if v.is_extra}:
             extra_str = ", ".join(f"{i!r}" for i in extra_types)
@@ -2217,7 +2215,7 @@ class WorkflowTask(AppAware):
             # if a parameter has multiple labels, disregard from this by removing all
             # parameters:
             seen_labelled: dict[str, int] = defaultdict(int)
-            for src_i in sources.keys():
+            for src_i in sources:
                 if "[" in src_i:
                     unlabelled, _ = split_param_label(src_i)
                     assert unlabelled is not None
@@ -2245,7 +2243,7 @@ class WorkflowTask(AppAware):
             int_task_i_lst = [
                 i for i in first_src.element_iters or () if i in intersect_task_i
             ]
-            for inp_type in sources.keys():
+            for inp_type in sources:
                 element_set.input_sources[inp_type][0].element_iters = int_task_i_lst
 
     def generate_new_elements(
@@ -2522,7 +2520,7 @@ class WorkflowTask(AppAware):
         iter_IDs: list[int] = []
         elem_IDs: list[int] = []
         for elem_idx, data_idx in enumerate(element_data_idx):
-            schema_params = set(i for i in data_idx.keys() if len(i.split(".")) == 2)
+            schema_params = set(i for i in data_idx if len(i.split(".")) == 2)
             elem_ID_i = self.workflow._store.add_element(
                 task_ID=self.insert_ID,
                 es_idx=self.num_element_sets - 1,

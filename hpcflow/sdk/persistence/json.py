@@ -120,9 +120,8 @@ class JsonStoreElementIter(StoreElementIter[IterMeta, None]):
         iter_dat = copy.deepcopy(iter_dat)  # to avoid mutating; can we avoid this?
 
         # cast JSON string keys to integers:
-        EAR_IDs = iter_dat["EAR_IDs"]
-        if EAR_IDs:
-            for act_idx in list(EAR_IDs.keys()):
+        if (EAR_IDs := iter_dat["EAR_IDs"]):
+            for act_idx in list(EAR_IDs):
                 EAR_IDs[int(act_idx)] = EAR_IDs.pop(act_idx)
 
         return cls(is_pending=False, **cast(dict, iter_dat))
@@ -489,8 +488,7 @@ class JSONPersistentStore(
 
     def _set_parameter_values(self, set_parameters: dict[int, tuple[Any, bool]]):
         """Set multiple unset persistent parameters."""
-        param_ids = list(set_parameters.keys())
-        param_objs = self._get_persistent_parameters(param_ids)
+        param_objs = self._get_persistent_parameters(set_parameters)
         with self.using_resource("parameters", "update") as params:
             for param_id, (value, is_file) in set_parameters.items():
                 param_i = param_objs[param_id]
@@ -502,10 +500,7 @@ class JSONPersistentStore(
 
     def _update_parameter_sources(self, sources: Mapping[int, ParamSource]):
         """Update the sources of multiple persistent parameters."""
-
-        param_ids = list(sources.keys())
-        param_objs = self._get_persistent_parameters(param_ids)
-
+        param_objs = self._get_persistent_parameters(sources)
         with self.using_resource("parameters", "update") as params:
             # no need to update data array:
             for p_id, src_i in sources.items():
@@ -765,7 +760,7 @@ class JSONPersistentStore(
 
     def _get_persistent_parameter_IDs(self) -> list[int]:
         with self.using_resource("parameters", "read") as params:
-            return list(int(i) for i in params["data"].keys())
+            return [int(i) for i in params["data"]]
 
     def get_ts_fmt(self) -> str:
         """

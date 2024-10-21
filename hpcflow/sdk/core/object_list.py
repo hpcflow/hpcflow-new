@@ -58,6 +58,7 @@ class ObjectList(JSONLike, Generic[T]):
         self._objects = list(objects)
         self._descriptor = descriptor or "object"
         self._object_is_dict: bool = False
+        self._index: dict[str, list[int]]
 
         self._validate()
 
@@ -115,7 +116,7 @@ class ObjectList(JSONLike, Generic[T]):
 
     def list_attrs(self):
         """Get a tuple of the unique access-attribute values of the constituent objects."""
-        return tuple(self._index.keys())
+        return tuple(self._index)
 
     def _get_item(self, obj: T):
         if self._object_is_dict:

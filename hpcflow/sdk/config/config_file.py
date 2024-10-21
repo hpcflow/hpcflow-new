@@ -146,7 +146,7 @@ class ConfigFile:
                 raise ConfigFileInvocationIncompatibleError(config_key)
 
         elif config_key not in configs:
-            raise ConfigInvocationKeyNotFoundError(config_key, path, list(configs.keys()))
+            raise ConfigInvocationKeyNotFoundError(config_key, path, list(configs))
 
         return config_key
 
@@ -189,7 +189,7 @@ class ConfigFile:
 
         modified_names: list[str] = []
         for config in self._configs:
-            modified_names.extend(config._modified_keys.keys())
+            modified_names.extend(config._modified_keys)
             modified_names.extend(config._unset_keys)
 
             new_data_config = new_data["configs"][config._config_key]["config"]

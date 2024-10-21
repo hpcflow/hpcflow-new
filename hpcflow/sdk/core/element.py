@@ -782,7 +782,7 @@ class ElementIteration(AppAware):
         self, data_idx: DataIndex, filter_type: str | None, use_task_index: bool
     ) -> Mapping[str, ParamSource | list[ParamSource]]:
         # the value associated with `repeats.*` is the repeats index, not a parameter ID:
-        for k in list(data_idx.keys()):
+        for k in tuple(data_idx):
             if k.startswith("repeats."):
                 data_idx.pop(k)
 
@@ -917,7 +917,7 @@ class ElementIteration(AppAware):
         if single_label_lookup:
             # For any non-multiple `SchemaParameter`s of this task with non-empty labels,
             # remove the trivial label:
-            for key in list(data_idx.keys()):
+            for key in tuple(data_idx):
                 if (path or "").startswith(key):
                     # `path` uses labelled type, so no need to convert to non-labelled
                     continue

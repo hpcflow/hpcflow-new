@@ -644,7 +644,7 @@ class StoreParameter:
             {
                 "tuples": [],
                 "sets": [],
-                **{k: [] for k in self._decoders.keys()},
+                **{k: [] for k in self._decoders},
             },
         )
 
@@ -2096,9 +2096,9 @@ class PersistentStore(
     ) -> tuple[dict[int, T], list[int]]:
         if self.use_cache:
             id_cached = set(id_lst)
-            id_non_cached = list(id_cached.difference(cache))
+            id_non_cached = sorted(id_cached.difference(cache))
             id_cached.intersection_update(cache)
-            items = {k: cache[k] for k in id_cached}
+            items = {k: cache[k] for k in sorted(id_cached)}
         else:
             items = {}
             id_non_cached = list(id_lst)
@@ -2254,7 +2254,7 @@ class PersistentStore(
         for idx, i in enumerate(store_iters):
             EARs: dict[int, dict[str, Any]] | None = None
             if i.EAR_IDs is not None:
-                EARs = dict(zip(i.EAR_IDs.keys(), cast("Any", EARs_dcts[idx])))
+                EARs = dict(zip(i.EAR_IDs, cast("Any", EARs_dcts[idx])))
             iters.append(i.to_dict(EARs))
 
         # reshape iterations:
@@ -2269,18 +2269,18 @@ class PersistentStore(
     def _get_persistent_parameter_IDs(self) -> Iterable[int]:
         ...
 
-    def check_parameters_exist(self, ids: Iterable[int]) -> list[bool]:
-        """For each parameter ID, return True if it exists, else False"""
+    def check_parameters_exist(self, ids: Sequence[int]) -> Iterable[bool]:
+        """
+        For each parameter ID, return True if it exists, else False.
+        """
 
-        id_lst = list(ids)
-        id_set = set(id_lst)
         all_pending = self._pending.add_parameters
-        id_not_pend = id_set.difference(all_pending)
+        id_not_pend = set(ids).difference(all_pending)
         id_miss = set()
         if id_not_pend:
             id_miss = id_not_pend.difference(self._get_persistent_parameter_IDs())
 
-        return [i not in id_miss for i in id_lst]
+        return (i not in id_miss for i in ids)
 
     @abstractmethod
     def _append_tasks(self, tasks: Iterable[AnySTask]) -> None:

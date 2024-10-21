@@ -236,7 +236,7 @@ def resolve_jobscript_dependencies(
             js_i_num_js_elements = jobscripts[js_i_idx]["EAR_ID"].shape[1]
             js_k_num_js_elements = jobscripts[js_k_idx]["EAR_ID"].shape[1]
 
-            is_all_i_elems = sorted(set(deps_j["js_element_mapping"].keys())) == list(
+            is_all_i_elems = sorted(set(deps_j["js_element_mapping"])) == list(
                 range(js_i_num_js_elements)
             )
 
@@ -1424,7 +1424,7 @@ class Jobscript(JSONLike):
                     out_i = out_d[next(iter(out_d))]  # first item only
                     # if value is single-length dict with `None` key, then transform
                     # to one key for each jobscript element:
-                    if list(out_i.keys()) == [None]:
+                    if tuple(out_i) == (None,):
                         out = {i: out_i[None] for i in range(self.num_elements)}
                 else:
                     out = {}

@@ -871,9 +871,9 @@ def test_task_add_elements_without_propagation_expected_new_data_index(
         nesting_orders={1: {"inputs.p2": 0}},
         path=tmp_path,
     )
-    data_index = [sorted(i.get_data_idx().keys()) for i in wk.tasks.t1.elements[:]]
+    data_index = [sorted(i.get_data_idx()) for i in wk.tasks.t1.elements[:]]
     wk.tasks.t1.add_elements(inputs=[hf.InputValue(param_p1, 103)])
-    data_index_new = [sorted(i.get_data_idx().keys()) for i in wk.tasks.t1.elements[:]]
+    data_index_new = [sorted(i.get_data_idx()) for i in wk.tasks.t1.elements[:]]
     new_elems = data_index_new[len(data_index) :]
     assert new_elems == [["inputs.p1", "outputs.p2", "resources.any"]]
 
@@ -941,7 +941,7 @@ def test_task_add_elements_with_propagation_expected_new_data_index(
     )
     t1_num_elems_new = wk.tasks.t1.num_elements
     t2_num_elems_new = wk.tasks.t2.num_elements
-    data_index_new = [sorted(i.get_data_idx().keys()) for i in wk.elements()]
+    data_index_new = [sorted(i.get_data_idx()) for i in wk.elements()]
     new_elems_t1 = data_index_new[t1_num_elems:t1_num_elems_new]
     new_elems_t2 = data_index_new[
         t1_num_elems_new + t2_num_elems : t1_num_elems_new + t2_num_elems_new
@@ -1012,7 +1012,7 @@ def test_task_add_elements_sequence_without_propagation_expected_new_data_index(
         sequences=[hf.ValueSequence("inputs.p1", values=[103, 104], nesting_order=1)]
     )
     t1_num_elems_new = wk.tasks.t1.num_elements
-    data_index_new = [sorted(i.get_data_idx().keys()) for i in wk.elements()]
+    data_index_new = [sorted(i.get_data_idx()) for i in wk.elements()]
     new_elems = data_index_new[t1_num_elems:t1_num_elems_new]
     assert new_elems == [
         ["inputs.p1", "outputs.p2", "resources.any"],
@@ -1095,7 +1095,7 @@ def test_task_add_elements_sequence_with_propagation_expected_new_data_index(
     )
     t1_num_elems_new = wk.tasks.t1.num_elements
     t2_num_elems_new = wk.tasks.t2.num_elements
-    data_index_new = [sorted(i.get_data_idx().keys()) for i in wk.elements()]
+    data_index_new = [sorted(i.get_data_idx()) for i in wk.elements()]
     new_elems_t1 = data_index_new[t1_num_elems:t1_num_elems_new]
     new_elems_t2 = data_index_new[
         t1_num_elems_new + t2_num_elems : t1_num_elems_new + t2_num_elems_new
@@ -1193,7 +1193,7 @@ def test_task_add_elements_sequence_with_propagation_into_sequence_expected_new_
     )
     t1_num_elems_new = wk.tasks.t1.num_elements
     t2_num_elems_new = wk.tasks.t2.num_elements
-    data_index_new = [sorted(i.get_data_idx().keys()) for i in wk.elements()]
+    data_index_new = [sorted(i.get_data_idx()) for i in wk.elements()]
     new_elems_t1 = data_index_new[t1_num_elems:t1_num_elems_new]
     new_elems_t2 = data_index_new[
         t1_num_elems_new + t2_num_elems : t1_num_elems_new + t2_num_elems_new
@@ -1328,7 +1328,7 @@ def test_task_add_elements_multi_task_dependence_expected_new_data_index(
     t1_num_elems_new = wk.tasks.t1.num_elements
     t2_num_elems_new = wk.tasks.t2.num_elements
     t3_num_elems_new = wk.tasks.t3.num_elements
-    data_index_new = [sorted(i.get_data_idx().keys()) for i in wk.elements()]
+    data_index_new = [sorted(i.get_data_idx()) for i in wk.elements()]
     new_elems_t1 = data_index_new[t1_num_elems:t1_num_elems_new]
     new_elems_t2 = data_index_new[
         t1_num_elems_new + t2_num_elems : t1_num_elems_new + t2_num_elems_new
@@ -1382,7 +1382,7 @@ def test_task_add_elements_multi_task_dependence_expected_new_data_index_custom_
     t1_num_elems_new = wk.tasks.t1.num_elements
     t2_num_elems_new = wk.tasks.t2.num_elements
     t3_num_elems_new = wk.tasks.t3.num_elements
-    data_index_new = [sorted(i.get_data_idx().keys()) for i in wk.elements()]
+    data_index_new = [sorted(i.get_data_idx()) for i in wk.elements()]
     new_elems_t1 = data_index_new[t1_num_elems:t1_num_elems_new]
     new_elems_t2 = data_index_new[
         t1_num_elems_new + t2_num_elems : t1_num_elems_new + t2_num_elems_new
@@ -1559,7 +1559,7 @@ def test_task_add_elements_sequence_multi_task_dependence_expected_new_data_inde
     t2_num_elems_new = wk.tasks.t2.num_elements
     t3_num_elems_new = wk.tasks.t3.num_elements
 
-    data_index_new = [sorted(i.get_data_idx().keys()) for i in wk.elements()]
+    data_index_new = [sorted(i.get_data_idx()) for i in wk.elements()]
     new_elems_t1 = data_index_new[t1_num_elems:t1_num_elems_new]
     new_elems_t2 = data_index_new[
         t1_num_elems_new + t2_num_elems : t1_num_elems_new + t2_num_elems_new
@@ -1615,7 +1615,7 @@ def test_task_add_elements_sequence_multi_task_dependence_expected_new_data_inde
     t2_num_elems_new = wk.tasks.t2.num_elements
     t3_num_elems_new = wk.tasks.t3.num_elements
 
-    data_index_new = [sorted(i.get_data_idx().keys()) for i in wk.elements()]
+    data_index_new = [sorted(i.get_data_idx()) for i in wk.elements()]
     new_elems_t1 = data_index_new[t1_num_elems:t1_num_elems_new]
     new_elems_t2 = data_index_new[
         t1_num_elems_new + t2_num_elems : t1_num_elems_new + t2_num_elems_new
@@ -1707,7 +1707,7 @@ def test_expected_additional_parameter_data_on_add_task(
 
     param_data_new = wk.get_all_parameter_data()
 
-    new_keys = set(param_data_new.keys()) - set(param_data.keys())
+    new_keys = sorted(set(param_data_new).difference(param_data))
     new_data = [param_data_new[k] for k in new_keys]
 
     # one new key for resources, one for param_p3 value

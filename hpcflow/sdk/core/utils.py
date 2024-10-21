@@ -594,7 +594,7 @@ def list_to_dict(
     """
     # TODO: test
     exc = frozenset(exclude or ())
-    dct: dict[T, list[T2]] = {k: [] for k in lst[0].keys() if k not in exc}
+    dct: dict[T, list[T2]] = {k: [] for k in lst[0] if k not in exc}
     for d in lst:
         for k, v in d.items():
             if k not in exc:
@@ -781,7 +781,7 @@ class JSONLikeDirSnapShot(DirectorySnapshot):
 
         if data:
             assert root_path
-            for k in list((data or {}).keys()):
+            for k in list(data or {}):
                 # add root path
                 full_k = str(PurePath(root_path) / PurePath(k))
                 stat_dat, inode_key = data[k][:-2], data[k][-2:]
@@ -800,7 +800,7 @@ class JSONLikeDirSnapShot(DirectorySnapshot):
 
         """
         # first key is the root path:
-        root_path = next(iter(self._stat_info.keys()))
+        root_path = next(iter(self._stat_info))
 
         # store efficiently:
         inode_invert = {v: k for k, v in self._inode_to_path.items()}
@@ -977,7 +977,7 @@ def dict_values_process_flat(
     processed = callable(flat)
 
     out: dict[T, T3 | list[T3]] = {}
-    for idx_i, (m, k) in enumerate(zip(is_multi, d.keys())):
+    for idx_i, (m, k) in enumerate(zip(is_multi, d)):
 
         start_idx = sum(i[1] for i in is_multi[:idx_i])
         end_idx = start_idx + m[1]

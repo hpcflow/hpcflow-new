@@ -225,7 +225,7 @@ class QueuedScheduler(Scheduler[str]):
             print(info)
             if not info:
                 break
-            js_refs = list(info.keys())
+            js_refs = list(info)
             time.sleep(2)
 
     @abstractmethod

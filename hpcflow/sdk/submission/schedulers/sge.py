@@ -138,7 +138,7 @@ class SGEPosix(QueuedScheduler):
             try:
                 env = para_envs[resources.SGE_parallel_env]
             except KeyError:
-                raise UnknownSGEPEError(resources.SGE_parallel_env, para_envs.keys())
+                raise UnknownSGEPEError(resources.SGE_parallel_env, para_envs)
             if not cls.is_num_cores_supported(resources.num_cores, env["num_cores"]):
                 raise IncompatibleSGEPEError(
                     resources.SGE_parallel_env, resources.num_cores

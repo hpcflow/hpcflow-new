@@ -380,14 +380,14 @@ class WSLBash(Bash):
         """
         vers_info = super().get_version_info(exclude_os=exclude_os)
 
-        vers_info["shell_name"] = ("wsl+" + cast(str, vers_info["shell_name"])).lower()
+        vers_info["shell_name"] = f"wsl+{vers_info['shell_name']}".lower()
         vers_info["WSL_executable"] = self.WSL_executable
         if self.WSL_distribution:
             vers_info["WSL_distribution"] = self.WSL_distribution
         if self.WSL_user:
             vers_info["WSL_user"] = self.WSL_user
 
-        for key in list(vers_info.keys()):
+        for key in tuple(vers_info):
             if key.startswith("OS_"):
                 vers_info[f"WSL_{key}"] = vers_info.pop(key)
 

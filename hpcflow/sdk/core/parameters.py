@@ -467,7 +467,7 @@ class SchemaInput(SchemaParameter):
         group_str = ""
         labels_str = ""
         if not self.multiple and self.labels:
-            label = next(iter(self.labels.keys()))  # the single key
+            label = next(iter(self.labels))  # the single key
 
             default_str = ""
             if "default_value" in self.labels[label]:
@@ -568,7 +568,7 @@ class SchemaInput(SchemaParameter):
         """
         The types of the input labels.
         """
-        return list(f"{self.typ}{f'[{i}]' if i else ''}" for i in self.labels)
+        return [(f"{self.typ}[{i}]" if i else self.typ) for i in self.labels]
 
     @property
     def single_label(self) -> str | None:
@@ -602,15 +602,24 @@ class SchemaInput(SchemaParameter):
         Get descriptors for all the labels associated with this input.
         """
         for k, v in self.labels.items():
-            label = f"[{k}]" if k else ""
+            label = f"{self.parameter.typ}[{k}]" if k else self.parameter.typ
             dct: LabellingDescriptor = {
-                "labelled_type": self.parameter.typ + label,
+                "labelled_type": label,
                 "propagation_mode": v["propagation_mode"],
-                "group": cast(str, v.get("group")),
+                "group": v.get("group"),
             }
             if "default_value" in v:
                 dct["default_value"] = v["default_value"]
             yield dct
+
+    @property
+    def _simple_labelled_info(self) -> Iterator[tuple[str, ParameterPropagationMode]]:
+        """
+        Cut-down version of :py:meth:`labelled_info` that has lower overheads.
+        """
+        for k, v in self.labels.items():
+            label = f"{self.parameter.typ}[{k}]" if k else self.parameter.typ
+            yield label, v["propagation_mode"]
 
     def _validate(self) -> None:
         super()._validate()
@@ -1025,7 +1034,7 @@ class ValueSequence(JSONLike):
         """Save value to a persistent workflow."""
 
         if self._values_group_idx is not None:
-            if not all(workflow.check_parameters_exist(self._values_group_idx)):
+            if not workflow.check_parameters_exist(self._values_group_idx):
                 raise RuntimeError(
                     f"{self.__class__.__name__} has a parameter group index "
                     f"({self._values_group_idx}), but does not exist in the workflow."
@@ -1901,7 +1910,7 @@ class ResourceSpec(JSONLike):
         try:
             obj = cls(**json_like)
         except TypeError:
-            given_keys = set(k for k in json_like.keys() if k != "scope")
+            given_keys = set(k for k in json_like if k != "scope")
             bad_keys = cls.__quoted(given_keys - cls.ALLOWED_PARAMETERS)
             good_keys = cls._allowed_params_quoted()
             raise UnknownResourceSpecItemError(

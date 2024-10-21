@@ -75,6 +75,7 @@ if TYPE_CHECKING:
 ListAny: TypeAlias = "list[Any]"
 #: Zarr attribute mapping context.
 ZarrAttrs: TypeAlias = "dict[str, list[str]]"
+_JS: TypeAlias = "dict[str, list[dict[str, dict]]]"
 
 
 blosc.use_threads = False  # hpcflow is a multiprocess program in general
@@ -723,7 +724,7 @@ class ZarrPersistentStore(
 
     @TimeIt.decorator
     def _update_EAR_submission_indices(self, sub_indices: Mapping[int, int]):
-        EAR_IDs = list(sub_indices.keys())
+        EAR_IDs = list(sub_indices)
         EARs = self._get_persistent_EARs(EAR_IDs)
 
         arr = self._get_EARs_arr(mode="r+")
@@ -810,7 +811,7 @@ class ZarrPersistentStore(
     def _set_parameter_values(self, set_parameters: dict[int, tuple[Any, bool]]):
         """Set multiple unset persistent parameters."""
 
-        param_ids = list(set_parameters.keys())
+        param_ids = list(set_parameters)
         # the `decode` call in `_get_persistent_parameters` should be quick:
         params = self._get_persistent_parameters(param_ids)
         new_data: list[dict[str, Any] | int] = []
@@ -837,7 +838,7 @@ class ZarrPersistentStore(
     def _update_parameter_sources(self, sources: Mapping[int, ParamSource]):
         """Update the sources of multiple persistent parameters."""
 
-        param_ids = list(sources.keys())
+        param_ids = list(sources)
         src_arr = self._get_parameter_sources_array(mode="r+")
         existing_sources = src_arr.get_coordinate_selection(param_ids)
         new_sources = [
@@ -1111,9 +1112,10 @@ class ZarrPersistentStore(
             )
             # cast jobscript submit-times and jobscript `task_elements` keys:
             for sub in subs_dat.values():
-                for js in cast("dict[str, list[dict[str, dict]]]", sub)["jobscripts"]:
-                    for key in list(js["task_elements"].keys()):
-                        js["task_elements"][int(key)] = js["task_elements"].pop(key)
+                for js in cast(_JS, sub)["jobscripts"]:
+                    task_elements = js["task_elements"]
+                    for key in list(task_elements):
+                        task_elements[int(key)] = task_elements.pop(key)
 
         return subs_dat
 

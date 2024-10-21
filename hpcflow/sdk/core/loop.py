@@ -662,8 +662,8 @@ class WorkflowLoop(AppAware):
 
                 # add any locally defined sub-parameters:
                 inp_statuses = cache.elements[elem_ID]["input_statuses"]
-                inp_status_inps = set([f"inputs.{i}" for i in inp_statuses])
-                sub_params = inp_status_inps - set(new_data_idx.keys())
+                inp_status_inps = set(f"inputs.{i}" for i in inp_statuses)
+                sub_params = inp_status_inps.difference(new_data_idx)
                 for sub_param_i in sub_params:
                     sub_param_data_idx_iter_0 = zi_data_idx
                     try:
@@ -683,7 +683,7 @@ class WorkflowLoop(AppAware):
                     new_data_idx[path_i] = self.workflow._add_unset_parameter_data(p_src)
 
                 schema_params = set(
-                    i for i in new_data_idx.keys() if len(i.split(".")) == 2
+                    i for i in new_data_idx if len(i.split(".")) == 2
                 )
                 all_new_data_idx[task.insert_ID, elem_idx] = new_data_idx
 
@@ -751,7 +751,7 @@ class WorkflowLoop(AppAware):
                 f"{inp!r}'s latest output task (insert ID: "
                 f"{iter_dat['output_tasks'][-1]}) that can be used "
                 f"to parametrise the next iteration: "
-                f"{list(src_elem_IDs.keys())!r}."
+                f"{list(src_elem_IDs)!r}."
             )
 
         elif not src_elem_IDs:

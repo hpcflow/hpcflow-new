@@ -75,12 +75,10 @@ class RunDirAppFiles(AppAware):
         snapshot.take(".")
         ss_js = snapshot.to_json_like()
         ss_js.pop("root_path")  # always the current working directory of the run
-        for k in list(ss_js["data"].keys()):
-            if (
-                k == cls.get_log_file_name()
-                or k == cls.get_std_file_name()
-                or cls.__CMD_FILES_RE_PATTERN.match(k)
-            ):
-                ss_js["data"].pop(k)
+        excluded = {cls.get_log_file_name(), cls.get_std_file_name()}
+        data: dict[str, Any] = ss_js["data"]
+        for k in tuple(data):
+            if k in excluded or cls.__CMD_FILES_RE_PATTERN.match(k):
+                data.pop(k)
 
         return ss_js

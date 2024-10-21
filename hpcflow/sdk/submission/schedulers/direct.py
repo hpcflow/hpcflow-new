@@ -67,9 +67,9 @@ class DirectScheduler(Scheduler[DirectRef]):
     @staticmethod
     def _kill_processes(
         procs: list[psutil.Process],
-        sig=signal.SIGTERM,
-        timeout=None,
-        on_terminate=None,
+        sig: signal.Signals = signal.SIGTERM,
+        timeout: float | None = None,
+        on_terminate: Callable[[psutil.Process], object]| None = None,
     ):
         all_procs: list[psutil.Process] = []
         for i in procs:

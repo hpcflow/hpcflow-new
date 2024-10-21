@@ -114,12 +114,12 @@ class TimeIt:
         }
 
         # make a graph
-        for key in sorted(stats.keys(), key=lambda x: len(x), reverse=True):
+        for key in sorted(stats, key=lambda x: len(x), reverse=True):
             if len(key) == 1:
                 continue
             value = stats.pop(key)
             parent = key[:-1]
-            for other_key in stats.keys():
+            for other_key in stats:
                 if other_key == parent:
                     stats[other_key].children[key] = value
                     break
