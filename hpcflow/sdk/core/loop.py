@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import copy
+from pprint import pp
+import pprint
 from typing import Dict, List, Optional, Tuple, Union, Any
 from warnings import warn
 
@@ -577,7 +579,8 @@ class WorkflowLoop:
                                     f"Multiple elements found in the iterable parameter "
                                     f"{inp!r}'s latest output task (insert ID: "
                                     f"{iter_dat['output_tasks'][-1]}) that can be used "
-                                    f"to parametrise the next iteration: "
+                                    f"to parametrise the next iteration of task "
+                                    f"{task.unique_name!r}: "
                                     f"{list(src_elem_IDs.keys())!r}."
                                 )
 
@@ -601,13 +604,14 @@ class WorkflowLoop:
                             **parent_loop_same_iters,
                             self.name: cur_loop_idx,
                         }
-                        for i in child_loops:
-                            i_num_iters = i.num_added_iterations[
-                                tuple(child_iter_parents[j] for j in i.parents)
-                            ]
-                            i_max = i_num_iters - 1
-                            child_iter_parents[i.name] = i_max
-                            child_loop_max_iters[i.name] = i_max
+                        for child in child_loops:
+                            if iter_dat["output_tasks"][-1] in child.task_insert_IDs:
+                                i_num_iters = child.num_added_iterations[
+                                    tuple(child_iter_parents[j] for j in child.parents)
+                                ]
+                                i_max = i_num_iters - 1
+                                child_iter_parents[child.name] = i_max
+                                child_loop_max_iters[child.name] = i_max
 
                         source_iter_loop_idx = {
                             **child_loop_max_iters,
