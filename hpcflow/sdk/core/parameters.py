@@ -65,6 +65,10 @@ class ParameterValue:
         raise NotImplementedError
 
     @classmethod
+    def dump_element_group_to_HDF5_group(cls, objs: List[ParameterValue], group):
+        raise NotImplementedError
+
+    @classmethod
     def save_from_HDF5_group(cls, group, param_id: int, workflow):
         raise NotImplementedError
 
