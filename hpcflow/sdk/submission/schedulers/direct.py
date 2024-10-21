@@ -69,7 +69,7 @@ class DirectScheduler(Scheduler[DirectRef]):
         procs: list[psutil.Process],
         sig: signal.Signals = signal.SIGTERM,
         timeout: float | None = None,
-        on_terminate: Callable[[psutil.Process], object]| None = None,
+        on_terminate: Callable[[psutil.Process], object] | None = None,
     ):
         all_procs: list[psutil.Process] = []
         for i in procs:

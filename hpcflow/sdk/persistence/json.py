@@ -120,7 +120,7 @@ class JsonStoreElementIter(StoreElementIter[IterMeta, None]):
         iter_dat = copy.deepcopy(iter_dat)  # to avoid mutating; can we avoid this?
 
         # cast JSON string keys to integers:
-        if (EAR_IDs := iter_dat["EAR_IDs"]):
+        if EAR_IDs := iter_dat["EAR_IDs"]:
             for act_idx in list(EAR_IDs):
                 EAR_IDs[int(act_idx)] = EAR_IDs.pop(act_idx)
 

@@ -801,7 +801,9 @@ class ElementActionRun(AppAware):
         import h5py  # type: ignore
 
         for fmt, ins in self.action.script_data_in_grouped.items():
-            in_vals: dict[str, ParameterValue] = self.get_input_values(inputs=ins, label_dict=False)
+            in_vals: dict[str, ParameterValue] = self.get_input_values(
+                inputs=ins, label_dict=False
+            )
             if fmt == "json":
                 dump_path = self.action.get_param_dump_file_path_JSON(js_idx, js_act_idx)
                 in_vals_processed: dict[str, Any] = {}

@@ -524,7 +524,9 @@ class Config:
 
     def _disable_callbacks(
         self, callbacks: Sequence[str]
-    ) -> tuple[dict[str, tuple[GetterCallback, ...]], dict[str, tuple[SetterCallback, ...]]]:
+    ) -> tuple[
+        dict[str, tuple[GetterCallback, ...]], dict[str, tuple[SetterCallback, ...]]
+    ]:
         """
         Disable named get and set callbacks.
 

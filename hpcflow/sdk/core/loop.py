@@ -682,9 +682,7 @@ class WorkflowLoop(AppAware):
                     p_src: ParamSource = {"type": "EAR_output"}
                     new_data_idx[path_i] = self.workflow._add_unset_parameter_data(p_src)
 
-                schema_params = set(
-                    i for i in new_data_idx if len(i.split(".")) == 2
-                )
+                schema_params = set(i for i in new_data_idx if len(i.split(".")) == 2)
                 all_new_data_idx[task.insert_ID, elem_idx] = new_data_idx
 
                 iter_ID_i = self.workflow._store.add_element_iteration(
