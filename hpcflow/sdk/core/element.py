@@ -1850,8 +1850,8 @@ class Element(AppAware):
         all_deps: set[int] = get_deps(self)
 
         if task_insert_ID is not None:
-            elem_ID_subset = self.workflow.tasks.get(insert_ID=task_insert_ID).element_IDs
-            all_deps = {i for i in all_deps if i in elem_ID_subset}
+            all_deps.intersection_update(
+                self.workflow.tasks.get(insert_ID=task_insert_ID).element_IDs)
 
         return self.workflow.get_elements_from_IDs(sorted(all_deps))
 

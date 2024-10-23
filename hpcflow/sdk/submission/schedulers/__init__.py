@@ -9,6 +9,7 @@ import sys
 import time
 from typing import Generic, TypeVar, TYPE_CHECKING
 from typing_extensions import override
+from hpcflow.sdk.typing import hydrate
 from hpcflow.sdk.core.app_aware import AppAware
 
 if TYPE_CHECKING:
@@ -23,6 +24,7 @@ if TYPE_CHECKING:
 JSRefType = TypeVar("JSRefType")
 
 
+@hydrate
 class Scheduler(ABC, Generic[JSRefType], AppAware):
     """
     Abstract base class for schedulers.
@@ -140,6 +142,7 @@ class Scheduler(ABC, Generic[JSRefType], AppAware):
         """
 
 
+@hydrate
 class QueuedScheduler(Scheduler[str]):
     """
     Base class for schedulers that use a job submission system.

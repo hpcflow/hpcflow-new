@@ -481,7 +481,6 @@ def test_script_hdf5_out_obj(null_config, tmp_path: Path):
 @pytest.mark.integration
 @pytest.mark.skipif("hf.run_time_info.is_frozen")
 def test_script_direct_in_pass_env_spec(new_null_config, tmp_path: Path):
-
     vers_spec = {"version": "1.2"}
     env = hf.Environment(
         name="python_env_with_specifiers",

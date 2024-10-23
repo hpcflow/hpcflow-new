@@ -12,7 +12,7 @@ from collections import defaultdict
 from collections.abc import Callable, Sequence
 import statistics
 from dataclasses import dataclass
-from typing import TypeVar, TYPE_CHECKING
+from typing import ClassVar, TypeVar, TYPE_CHECKING
 from typing_extensions import ParamSpec
 
 if TYPE_CHECKING:
@@ -44,19 +44,19 @@ class TimeIt:
     """
 
     #: Whether the instrumentation is active.
-    active = False
+    active: ClassVar = False
     #: Where to log to.
-    file_path: str | None = None
+    file_path: ClassVar[str | None] = None
     #: The details be tracked.
-    timers: dict[tuple[str, ...], list[float]] = defaultdict(list)
+    timers: ClassVar[dict[tuple[str, ...], list[float]]] = defaultdict(list)
     #: Traces of the stack.
-    trace: list[str] = []
+    trace: ClassVar[list[str]] = []
     #: Trace indices.
-    trace_idx: list[int] = []
+    trace_idx: ClassVar[list[int]] = []
     #: Preceding traces.
-    trace_prev: list[str] = []
+    trace_prev: ClassVar[list[str]] = []
     #: Preceding trace indices.
-    trace_idx_prev: list[int] = []
+    trace_idx_prev: ClassVar[list[int]] = []
 
     @classmethod
     def decorator(cls, func: Callable[P, T]) -> Callable[P, T]:
@@ -66,7 +66,6 @@ class TimeIt:
 
         @wraps(func)
         def wrapper(*args, **kwargs) -> T:
-
             if not cls.active:
                 return func(*args, **kwargs)
 
@@ -118,11 +117,9 @@ class TimeIt:
             if len(key) == 1:
                 continue
             value = stats.pop(key)
-            parent = key[:-1]
-            for other_key in stats:
-                if other_key == parent:
-                    stats[other_key].children[key] = value
-                    break
+            parent_key = key[:-1]
+            if parent_key in stats:
+                stats[parent_key].children[key] = value
 
         return stats
 
@@ -177,9 +174,9 @@ class AppLog:
     """
 
     #: Default logging level for the console.
-    DEFAULT_LOG_CONSOLE_LEVEL = "WARNING"
+    DEFAULT_LOG_CONSOLE_LEVEL: ClassVar = "WARNING"
     #: Default logging level for log files.
-    DEFAULT_LOG_FILE_LEVEL = "INFO"
+    DEFAULT_LOG_FILE_LEVEL: ClassVar = "INFO"
 
     def __init__(self, app: BaseApp, log_console_level: str | None = None) -> None:
         #: The application context.

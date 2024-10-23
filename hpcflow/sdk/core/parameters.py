@@ -293,6 +293,7 @@ class SubParameter:
 
 
 @dataclass
+@hydrate
 class SchemaParameter(JSONLike):
     """
     A parameter bound in a schema.
@@ -337,6 +338,7 @@ class NullDefault(enum.Enum):
     NULL = 0
 
 
+@hydrate
 class SchemaInput(SchemaParameter):
     """A Parameter as used within a particular schema, for which a default value may be
     applied.
@@ -377,7 +379,7 @@ class SchemaInput(SchemaParameter):
 
     _task_schema: TaskSchema | None = None  # assigned by parent TaskSchema
 
-    _child_objects = (
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="parameter",
             class_name="Parameter",
@@ -2336,7 +2338,7 @@ class InputSource(JSONLike):
         assert self.source_type
         cls_method_name = self.source_type.name.lower()
 
-        args_lst = []
+        args_lst: list[str] = []
 
         if self.source_type is InputSourceType.IMPORT:
             cls_method_name += "_"
@@ -2344,8 +2346,8 @@ class InputSource(JSONLike):
 
         elif self.source_type is InputSourceType.TASK:
             assert self.task_source_type
-            args_lst += (
-                f"task_ref={self.task_ref}",
+            args_lst.append(f"task_ref={self.task_ref}")
+            args_lst.append(
                 f"task_source_type={self.task_source_type.name.lower()!r}",
             )
 
@@ -2497,7 +2499,7 @@ class InputSource(JSONLike):
         where: Where | None = None,
     ) -> Self:
         """
-        Make an instnace of an input source that is an import.
+        Make an instance of an input source that is an import.
 
         Parameters
         ----------
@@ -2518,14 +2520,14 @@ class InputSource(JSONLike):
     @classmethod
     def local(cls) -> Self:
         """
-        Make an instnace of an input source that is local.
+        Make an instance of an input source that is local.
         """
         return cls(source_type=InputSourceType.LOCAL)
 
     @classmethod
     def default(cls) -> Self:
         """
-        Make an instnace of an input source that is default.
+        Make an instance of an input source that is default.
         """
         return cls(source_type=InputSourceType.DEFAULT)
 

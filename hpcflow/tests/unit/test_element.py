@@ -633,7 +633,6 @@ def test_element_resources_get_jobscript_hash_equal_num_cores() -> None:
 
 
 def test_element_resources_get_jobscript_hash_unequal_scheduler_args_empty() -> None:
-
     assert (
         hf.ElementResources().get_jobscript_hash()
         != hf.ElementResources(
@@ -643,7 +642,6 @@ def test_element_resources_get_jobscript_hash_unequal_scheduler_args_empty() -> 
 
 
 def test_element_resources_get_jobscript_hash_equal_non_truthy_scheduler_args() -> None:
-
     assert (
         hf.ElementResources().get_jobscript_hash()
         == hf.ElementResources(scheduler_args={}).get_jobscript_hash()
@@ -653,7 +651,6 @@ def test_element_resources_get_jobscript_hash_equal_non_truthy_scheduler_args() 
 def test_element_resources_get_jobscript_hash_unequal_scheduler_args_diff_options() -> (
     None
 ):
-
     assert (
         hf.ElementResources(
             scheduler_args={"options": {"--time": "02:00:00"}}
@@ -667,7 +664,6 @@ def test_element_resources_get_jobscript_hash_unequal_scheduler_args_diff_option
 def test_element_resources_get_jobscript_hash_unequal_scheduler_args_same_options() -> (
     None
 ):
-
     assert (
         hf.ElementResources(
             scheduler_args={"options": {"--time": "02:00:00"}}

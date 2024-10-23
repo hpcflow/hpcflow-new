@@ -342,10 +342,10 @@ class PrettyPrinter:
     Intended to be subclassed.
     """
 
-    def __str__(self):
+    def __str__(self) -> str:
         lines = [self.__class__.__name__ + ":"]
         for key, val in vars(self).items():
-            lines += f"{key}: {val}".split("\n")
+            lines.extend(f"{key}: {val}".split("\n"))
         return "\n    ".join(lines)
 
 
@@ -664,7 +664,7 @@ def flatten(
         out: list[int] = []
         for i in lst:
             if isinstance(i, list):
-                out += _flatten(i, depth + 1)
+                out.extend(_flatten(i, depth + 1))
                 all_lens[depth].append(len(i))
             else:
                 out.append(i)
@@ -978,7 +978,6 @@ def dict_values_process_flat(
 
     out: dict[T, T3 | list[T3]] = {}
     for idx_i, (m, k) in enumerate(zip(is_multi, d)):
-
         start_idx = sum(i[1] for i in is_multi[:idx_i])
         end_idx = start_idx + m[1]
         proc_idx_k = processed[start_idx:end_idx]

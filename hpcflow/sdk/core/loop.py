@@ -7,6 +7,7 @@ notably looping over a set of values or until a condition holds.
 from __future__ import annotations
 
 import copy
+from collections import defaultdict
 from itertools import chain
 from typing import TYPE_CHECKING
 from typing_extensions import override
@@ -424,15 +425,12 @@ class WorkflowLoop(AppAware):
     @TimeIt.decorator
     def _find_iterable_parameters(loop_template: Loop) -> dict[str, IterableParam]:
         all_inputs_first_idx: dict[str, int] = {}
-        all_outputs_idx: dict[str, list[int]] = {}
+        all_outputs_idx: dict[str, list[int]] = defaultdict(list)
         for task in loop_template.task_objects:
             for typ in task.template.all_schema_input_types:
-                if typ not in all_inputs_first_idx:
-                    all_inputs_first_idx[typ] = task.insert_ID or 0
+                all_inputs_first_idx.setdefault(typ, task.insert_ID)
             for typ in task.template.all_schema_output_types:
-                if typ not in all_outputs_idx:
-                    all_outputs_idx[typ] = []
-                all_outputs_idx[typ].append(task.insert_ID or 0)
+                all_outputs_idx[typ].append(task.insert_ID)
 
         iterable_params: dict[str, IterableParam] = {}
         for typ, first_idx in all_inputs_first_idx.items():
@@ -443,8 +441,7 @@ class WorkflowLoop(AppAware):
                 }
 
         for non_iter in loop_template.non_iterable_parameters:
-            if non_iter in iterable_params:
-                del iterable_params[non_iter]
+            iterable_params.pop(non_iter, None)
 
         return iterable_params
 
@@ -532,8 +529,7 @@ class WorkflowLoop(AppAware):
                 children.append(loop_i)
 
         # order by depth, so direct child is first:
-        children = sorted(children, key=lambda x: len(next(iter(x.num_added_iterations))))
-        return children
+        return sorted(children, key=lambda x: len(next(iter(x.num_added_iterations))))
 
     @TimeIt.decorator
     def add_iteration(
@@ -571,11 +567,10 @@ class WorkflowLoop(AppAware):
                 **parent_loop_indices_,
                 self.name: cur_loop_idx + 1,
             }
-            added_iters_key_chd = tuple([iters_key_dct.get(j, 0) for j in child.parents])
+            added_iters_key_chd = tuple(iters_key_dct.get(j, 0) for j in child.parents)
             child._initialise_pending_added_iters(added_iters_key_chd)
 
         for task in self.task_objects:
-
             new_loop_idx = {
                 **parent_loop_indices_,
                 self.name: cur_loop_idx + 1,

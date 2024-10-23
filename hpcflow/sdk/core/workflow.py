@@ -213,9 +213,9 @@ class WorkflowTemplate(JSONLike):
         Whether to merge the environemtns into task resources.
     """
 
-    _validation_schema = "workflow_spec_schema.yaml"
+    _validation_schema: ClassVar = "workflow_spec_schema.yaml"
 
-    _child_objects = (
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="tasks",
             class_name="Task",
@@ -301,7 +301,6 @@ class WorkflowTemplate(JSONLike):
             self.env_presets = [self.env_presets] if self.env_presets else []
 
         for task in self.tasks:
-
             # get applicable environments and environment preset names:
             try:
                 schema = task.schema
@@ -3040,16 +3039,14 @@ class Workflow(AppAware):
 
             for js_dat in jobscripts:
                 # (insert ID, action_idx, index into task_loop_idx):
-                task_actions = [
-                    (task.insert_ID, i, 0)
-                    for i in sorted(
-                        set(
-                            act_idx_i
-                            for act_idx in js_dat["elements"].values()
-                            for act_idx_i in act_idx
-                        )
-                    )
-                ]
+                task_actions = sorted(
+                    set(
+                        (task.insert_ID, act_idx_i, 0)
+                        for act_idx in js_dat["elements"].values()
+                        for act_idx_i in act_idx
+                    ),
+                    key=lambda x: x[1]
+                )
                 # task_elements: { JS_ELEM_IDX: [TASK_ELEM_IDX for each task insert ID]}
                 task_elements = {
                     js_elem_idx: [task_elem_idx]
@@ -3087,15 +3084,14 @@ class Workflow(AppAware):
                         EAR_ID_i: int = EAR_map[act_idx, elem_idx].item()
                         all_EAR_IDs.append(EAR_ID_i)
                         js_act_idx = task_actions.index((task.insert_ID, act_idx, 0))
-                        js_i["EAR_ID"][js_act_idx][js_elem_idx] = EAR_ID_i
+                        EAR_ID_arr[js_act_idx][js_elem_idx] = EAR_ID_i
 
                     # get indices of EARs that this element depends on:
-                    EAR_deps = (
-                        all_EAR_objs[k].get_EAR_dependencies() for k in all_EAR_IDs
-                    )
-                    EAR_deps_flat = (j for i in EAR_deps for j in i)
                     EAR_deps_EAR_idx = [
-                        i for i in EAR_deps_flat if i not in js_i["EAR_ID"]
+                        dep_ear_id
+                        for main_ear_id in all_EAR_IDs 
+                        for dep_ear_id in all_EAR_objs[main_ear_id].get_EAR_dependencies()
+                        if dep_ear_id not in EAR_ID_arr
                     ]
                     if EAR_deps_EAR_idx:
                         all_element_deps.setdefault(new_js_idx, {})[
@@ -3105,6 +3101,49 @@ class Workflow(AppAware):
                 submission_jobscripts[new_js_idx] = js_i
 
         return submission_jobscripts, all_element_deps
+
+    def __get_commands(self, jobscript: Jobscript, JS_action_idx: int, ear: ElementActionRun):
+        try:
+            commands, shell_vars = ear.compose_commands(jobscript, JS_action_idx)
+        except OutputFileParserNoOutputError:
+            # no commands to write but still need to write the file,
+            # the jobscript is expecting it.
+            return ""
+
+        self._app.persistence_logger.debug("need to write commands")
+        pieces = [commands]
+        for cmd_idx, var_dat in shell_vars.items():
+            for param_name, shell_var_name, st_typ in var_dat:
+                pieces.append(jobscript.shell.format_save_parameter(
+                    workflow_app_alias=jobscript.workflow_app_alias,
+                    param_name=param_name,
+                    shell_var_name=shell_var_name,
+                    EAR_ID=ear.id_,
+                    cmd_idx=cmd_idx,
+                    stderr=(st_typ == "stderr"),
+                ))
+        commands = jobscript.shell.wrap_in_subshell(
+            ''.join(pieces), ear.action.abortable)
+
+        # add loop-check command if this is the last action of this loop iteration
+        # for this element:
+        if self.loops:
+            final_runs = (
+                # TODO: excessive reads here
+                self.get_iteration_final_run_IDs(id_lst=jobscript.all_EAR_IDs)
+            )
+            self._app.persistence_logger.debug(f"final_runs: {final_runs!r}")
+            pieces = []
+            for loop_name, run_IDs in final_runs.items():
+                if ear.id_ in run_IDs:
+                    loop_cmd = jobscript.shell.format_loop_check(
+                        workflow_app_alias=jobscript.workflow_app_alias,
+                        loop_name=loop_name,
+                        run_ID=ear.id_,
+                    )
+                    pieces.append(jobscript.shell.wrap_in_subshell(loop_cmd, False))
+            commands += ''.join(pieces)
+        return commands
 
     def write_commands(
         self,
@@ -3124,50 +3163,7 @@ class Workflow(AppAware):
             self._app.persistence_logger.debug(f"loading run {EAR_ID!r}")
             EAR = self.get_EARs_from_IDs(EAR_ID)
             self._app.persistence_logger.debug(f"run {EAR_ID!r} loaded: {EAR!r}")
-            write_commands = True
-            try:
-                commands, shell_vars = EAR.compose_commands(jobscript, JS_action_idx)
-            except OutputFileParserNoOutputError:
-                # no commands to write
-                write_commands = False
-
-            if write_commands:
-                self._app.persistence_logger.debug("need to write commands")
-                for cmd_idx, var_dat in shell_vars.items():
-                    for param_name, shell_var_name, st_typ in var_dat:
-                        commands += jobscript.shell.format_save_parameter(
-                            workflow_app_alias=jobscript.workflow_app_alias,
-                            param_name=param_name,
-                            shell_var_name=shell_var_name,
-                            EAR_ID=EAR_ID,
-                            cmd_idx=cmd_idx,
-                            stderr=(st_typ == "stderr"),
-                        )
-                commands = jobscript.shell.wrap_in_subshell(
-                    commands, EAR.action.abortable
-                )
-
-                # add loop-check command if this is the last action of this loop iteration
-                # for this element:
-                if self.loops:
-                    final_runs = (
-                        self.get_iteration_final_run_IDs(  # TODO: excessive reads here
-                            id_lst=jobscript.all_EAR_IDs
-                        )
-                    )
-                    self._app.persistence_logger.debug(f"final_runs: {final_runs!r}")
-                    for loop_name, run_IDs in final_runs.items():
-                        if EAR.id_ in run_IDs:
-                            loop_cmd = jobscript.shell.format_loop_check(
-                                workflow_app_alias=jobscript.workflow_app_alias,
-                                loop_name=loop_name,
-                                run_ID=EAR.id_,
-                            )
-                            commands += jobscript.shell.wrap_in_subshell(loop_cmd, False)
-            else:
-                # still need to write the file, the jobscript is expecting it.
-                commands = ""
-
+            commands = self.__get_commands(jobscript, JS_action_idx, EAR)
             self._app.persistence_logger.debug(f"commands to write: {commands!r}")
             cmd_file_name = jobscript.get_commands_file_name(JS_action_idx)
             with Path(cmd_file_name).open("wt", newline="\n") as fp:

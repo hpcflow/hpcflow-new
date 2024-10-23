@@ -23,13 +23,11 @@ if TYPE_CHECKING:
 def get_classmethods(cls: type) -> list[str]:
     """Get a list of class methods of a given class."""
     return sorted(
-        [
-            k
-            for k, v in cls.__dict__.items()
-            if callable(getattr(cls, k))
-            and not k.startswith("_")
-            and isinstance(v, classmethod)
-        ]
+        k
+        for k, v in cls.__dict__.items()
+        if callable(getattr(cls, k))
+        and not k.startswith("_")
+        and isinstance(v, classmethod)
     )
 
 
@@ -55,33 +53,32 @@ def _write_valida_tree_html(
     return path_
 
 
+_EXE_PLAT_LOOKUP = {
+    "win.exe": "Windows executable",
+    "macOS": "macOS executable",
+    "linux": "Linux executable",
+    "win-dir.zip": "Windows folder",
+    "linux-dir.zip": "Linux folder",
+    "macOS-dir.zip": "macOS folder",
+}
+
 def generate_download_links_table() -> str:
     """Generate install/index.rst file programmatically, including binary download links."""
-    EXE_PLAT_LOOKUP = {
-        "win.exe": "Windows executable",
-        "macOS": "macOS executable",
-        "linux": "Linux executable",
-        "win-dir.zip": "Windows folder",
-        "linux-dir.zip": "Linux folder",
-        "macOS-dir.zip": "macOS folder",
-    }
-
     # Get just-released binaries:
     yaml = YAML()
     with Path("released_binaries.yml") as fh:
         bins_dat = yaml.load(fh)
 
-    links_table = (
+    return (
         '<table class="binary-downloads-table">'
         + "".join(
             f"""<tr><td>{
-                EXE_PLAT_LOOKUP["-".join(exe_name.split("-")[2:])]
+                _EXE_PLAT_LOOKUP["-".join(exe_name.split("-")[2:])]
             }</td><td><a href="{link}">{exe_name}</a></td></tr>"""
             for exe_name, link in sorted(bins_dat.items())
         )
         + "</table>"
     )
-    return links_table
 
 
 def expose_variables(app: BaseApp):
@@ -150,17 +147,15 @@ def copy_all_demo_workflows(app: BaseApp):
     """Load WorkflowTemplate objects and copy template files from all builtin demo
     template files to the reference source directory (adjacent to the workflows.rst file
     within which they are included)."""
-    out = {}
-    for name in app.list_demo_workflows():
-        obj = app.load_demo_workflow(name)
-        dst = Path(f"reference/demo_workflow_{name}")
-        file_name = app.copy_demo_workflow(name, dst=dst, doc=False)
-        out[name] = {
-            "obj": obj,
+    return {
+        name: {
+            "obj": app.load_demo_workflow(name),
             "file_path": f"demo_workflow_{name}",
-            "file_name": file_name,
+            "file_name": app.copy_demo_workflow(
+                name, dst=Path(f"reference/demo_workflow_{name}"), doc=False),
         }
-    return out
+        for name in app.list_demo_workflows()
+    }
 
 
 def prepare_API_reference_stub(app: BaseApp):
@@ -183,7 +178,7 @@ def prepare_API_reference_stub(app: BaseApp):
 
 def prepare_task_schema_action_info(app: BaseApp):
     """Write an HTML file for each task schema that lists the actions."""
-    out = {}
+    out: dict[str, dict[str, str]] = {}
     for ts_i in app.task_schemas:
         if not ts_i.web_doc:
             continue
@@ -196,10 +191,8 @@ def prepare_task_schema_action_info(app: BaseApp):
             "file_path": str(dst.resolve()),
             "file_name": dst.name,
         }
-        if ts_i.objective.name not in out:
-            out[ts_i.objective.name] = {}
 
-        out[ts_i.objective.name][
+        out.setdefault(ts_i.objective.name, {})[
             ts_i.name if ts_i.method or ts_i.implementation else None
         ] = value
 

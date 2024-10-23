@@ -62,7 +62,7 @@ from hpcflow.sdk.submission.shells.os_version import (
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Mapping
     from types import ModuleType
-    from typing import Literal
+    from typing import ClassVar, Literal
     from rich.status import Status
     from hpcflow.sdk.typing import (
         BasicTemplateComponents,
@@ -253,7 +253,7 @@ class Singleton(type, Generic[T]):
         The type of the class that is a singleton.
     """
 
-    _instances: dict[Singleton[T], Any] = {}
+    _instances: ClassVar[dict[Singleton[T], Any]] = {}
 
     def __call__(cls: Singleton[T], *args, **kwargs) -> T:
         """
@@ -332,10 +332,10 @@ class BaseApp(metaclass=Singleton):
         URL to documentation.
     """
 
-    _known_subs_file_name = "known_submissions.txt"
-    _known_subs_file_sep = "::"
-    _submission_ts_fmt = r"%Y-%m-%d %H:%M:%S.%f"
-    __load_pending = False
+    _known_subs_file_name: ClassVar = "known_submissions.txt"
+    _known_subs_file_sep: ClassVar = "::"
+    _submission_ts_fmt: ClassVar = r"%Y-%m-%d %H:%M:%S.%f"
+    __load_pending: ClassVar = False
 
     def __init__(
         self,
@@ -2408,7 +2408,7 @@ class BaseApp(metaclass=Singleton):
 
         # keys are line indices of non-running submissions, values are submission
         # date-times:
-        line_date = {}
+        line_date: dict[int, str] = {}
 
         removed_IDs: list[
             int
@@ -2431,7 +2431,6 @@ class BaseApp(metaclass=Singleton):
             update_end = item["local_id"] in end_times
 
             if update_inactive or update_start or update_end:
-
                 updated = self._format_known_submissions_line(
                     local_id=item["local_id"],
                     workflow_id=item["workflow_id"],
@@ -2458,7 +2457,7 @@ class BaseApp(metaclass=Singleton):
             if is_inactive:
                 line_date[ln_idx] = item["submit_time"]
 
-        ld_srt_idx = list(dict(sorted(line_date.items(), key=lambda i: i[1])))
+        ld_srt_idx = sorted(line_date, key=lambda x: line_date[x])
 
         if len(line_date) > max_inactive:
             # remove oldest inactive submissions:

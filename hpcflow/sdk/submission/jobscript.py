@@ -21,6 +21,7 @@ from hpcflow.sdk.core.errors import (
     NotSubmitMachineError,
 )
 
+from hpcflow.sdk.typing import hydrate
 from hpcflow.sdk.core.json_like import ChildObjectSpec, JSONLike
 from hpcflow.sdk.core.utils import parse_timestamp, current_timestamp
 from hpcflow.sdk.log import TimeIt
@@ -335,6 +336,7 @@ def jobscripts_to_list(
     return lst
 
 
+@hydrate
 class Jobscript(JSONLike):
     """
     A group of actions that are submitted together to be executed by the underlying job

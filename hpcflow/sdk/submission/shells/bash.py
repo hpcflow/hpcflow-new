@@ -7,8 +7,9 @@ from collections.abc import Mapping
 from pathlib import Path
 import subprocess
 from textwrap import dedent, indent
-from typing import cast, TYPE_CHECKING
+from typing import TYPE_CHECKING
 from typing_extensions import override
+from hpcflow.sdk.typing import hydrate
 from hpcflow.sdk.core import ABORT_EXIT_CODE
 from hpcflow.sdk.submission.shells.base import Shell
 from hpcflow.sdk.submission.shells.os_version import (
@@ -21,6 +22,7 @@ if TYPE_CHECKING:
     from .base import VersionInfo, JobscriptHeaderArgs
 
 
+@hydrate
 class Bash(Shell):
     """
     Class to represent using bash on a POSIX OS to generate and submit a jobscript.
@@ -283,6 +285,7 @@ class Bash(Shell):
             ).format(commands=commands)
 
 
+@hydrate
 class WSLBash(Bash):
     """
     A variant of bash that handles running under WSL on Windows.

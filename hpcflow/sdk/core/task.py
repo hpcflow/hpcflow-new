@@ -641,6 +641,7 @@ class ElementSet(JSONLike):
         )
 
 
+@hydrate
 class OutputLabel(JSONLike):
     """
     Schema input labels that should be applied to a subset of task outputs.
@@ -655,7 +656,7 @@ class OutputLabel(JSONLike):
         Optional filtering rule
     """
 
-    _child_objects = (
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="where",
             class_name="ElementFilter",
@@ -676,6 +677,7 @@ class OutputLabel(JSONLike):
         self.where = where
 
 
+@hydrate
 class Task(JSONLike):
     """
     Parametrisation of an isolated task for which a subset of input values are given
@@ -974,7 +976,7 @@ class Task(JSONLike):
             raise TaskTemplateMultipleSchemaObjectives(names)
 
     def _get_name(self) -> str:
-        out = f"{self.objective.name}"
+        out = self.objective.name
         for idx, schema_i in enumerate(self.schemas, start=1):
             need_and = idx < len(self.schemas) and (
                 self.schemas[idx].method or self.schemas[idx].implementation
@@ -1120,11 +1122,11 @@ class Task(JSONLike):
             for es_i in src_task.element_sets:
                 # add any element set that has task sources for this parameter
                 es_i_idx = es_i.index
-                if es_i_idx is not None and es_i_idx not in es_idx:
-                    for inp_src_i in es_i.input_sources.get(labelled_path, []):
-                        if inp_src_i.source_type is InputSourceType.TASK:
-                            es_idx.append(es_i_idx)
-                            break
+                if es_i_idx is not None and es_i_idx not in es_idx and any(
+                    inp_src_i.source_type is InputSourceType.TASK
+                    for inp_src_i in es_i.input_sources.get(labelled_path, ())
+                ):
+                    es_idx.append(es_i_idx)
         else:
             # outputs are always available, so consider all source task
             # element sets:
@@ -1136,7 +1138,7 @@ class Task(JSONLike):
         src_elem_iters: list[int] = []
         for es_i_idx in es_idx:
             es_i = src_task.element_sets[es_i_idx]
-            src_elem_iters += es_i.elem_iter_IDs  # should be sorted already
+            src_elem_iters.extend(es_i.elem_iter_IDs)  # should be sorted already
 
         if element_set.sourceable_elem_iters is not None:
             # can only use a subset of element iterations (this is the
@@ -1935,8 +1937,8 @@ class WorkflowTask(AppAware):
 
                     if self._app.InputSource.local() in sources_i:
                         # add task source to existing local source:
-                        input_data_idx[key] += grp_idx
-                        source_idx[key] += [inp_src_idx] * len(grp_idx)
+                        input_data_idx[key].extend(grp_idx)
+                        source_idx[key].extend([inp_src_idx] * len(grp_idx))
 
                     else:  # BUG: doesn't work for multiple task inputs sources
                         # overwrite existing local source (if it exists):
@@ -2050,7 +2052,7 @@ class WorkflowTask(AppAware):
         # sorting ensures that root parameters come before sub-parameters, which is
         # necessary when considering if we want to include a sub-parameter, when setting
         # missing sources below:
-        unsourced_inputs = sorted(req_types - set(element_set.input_sources))
+        unsourced_inputs = sorted(req_types.difference(element_set.input_sources))
 
         if extra_types := {k for k, v in all_stats.items() if v.is_extra}:
             extra_str = ", ".join(f"{i!r}" for i in extra_types)
@@ -2691,7 +2693,7 @@ class WorkflowTask(AppAware):
         elem_idx: list[int] = []
         for elem_set_i in element_sets:
             # copy and add the new element set:
-            elem_idx += self._add_element_set(elem_set_i.prepare_persistent_copy())
+            elem_idx.extend(self._add_element_set(elem_set_i.prepare_persistent_copy()))
 
         if not propagate_to:
             return elem_idx

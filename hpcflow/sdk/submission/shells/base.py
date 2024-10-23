@@ -6,6 +6,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING
+from hpcflow.sdk.typing import hydrate
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -13,6 +14,7 @@ if TYPE_CHECKING:
     from ..types import JobscriptHeaderArgs, VersionInfo
 
 
+@hydrate
 class Shell(ABC):
     """Class to represent a shell and templates for jobscript composition.
 

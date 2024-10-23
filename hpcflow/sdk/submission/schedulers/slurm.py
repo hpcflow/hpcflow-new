@@ -7,6 +7,7 @@ import subprocess
 import time
 from typing import TYPE_CHECKING
 from typing_extensions import override
+from hpcflow.sdk.typing import hydrate
 from hpcflow.sdk.core.enums import ParallelMode
 from hpcflow.sdk.core.errors import (
     IncompatibleParallelModeError,
@@ -28,6 +29,7 @@ if TYPE_CHECKING:
     from ..shells.base import Shell
 
 
+@hydrate
 class SlurmPosix(QueuedScheduler):
     """
     A scheduler that uses SLURM.

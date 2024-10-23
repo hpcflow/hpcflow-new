@@ -7,6 +7,7 @@ from collections.abc import Sequence
 import re
 from typing import TYPE_CHECKING
 from typing_extensions import override
+from hpcflow.sdk.typing import hydrate
 from hpcflow.sdk.core.errors import (
     IncompatibleSGEPEError,
     NoCompatibleSGEPEError,
@@ -26,6 +27,7 @@ if TYPE_CHECKING:
     from ..shells.base import Shell
 
 
+@hydrate
 class SGEPosix(QueuedScheduler):
     """
     A scheduler that uses SGE.

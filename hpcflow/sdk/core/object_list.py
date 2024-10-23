@@ -496,7 +496,7 @@ class TaskList(AppDataList["Task"]):
         The tasks in this list.
     """
 
-    _child_objects = (
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="_objects",
             class_name="Task",
@@ -519,7 +519,7 @@ class TaskTemplateList(AppDataList["TaskTemplate"]):
         The task templates in this list.
     """
 
-    _child_objects = (
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="_objects",
             class_name="TaskTemplate",
@@ -542,7 +542,7 @@ class TaskSchemasList(AppDataList["TaskSchema"]):
         The task schemas in this list.
     """
 
-    _child_objects = (
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="_objects",
             class_name="TaskSchema",
@@ -565,7 +565,7 @@ class GroupList(AppDataList["Group"]):
         The groups in this list.
     """
 
-    _child_objects = (
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="_objects",
             class_name="Group",
@@ -588,7 +588,7 @@ class EnvironmentsList(AppDataList["Environment"]):
         The environments in this list.
     """
 
-    _child_objects = (
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="_objects",
             class_name="Environment",
@@ -621,7 +621,7 @@ class ExecutablesList(AppDataList["Executable"]):
 
     #: The environment containing these executables.
     environment: Environment | None = None
-    _child_objects = (
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="_objects",
             class_name="Executable",
@@ -651,7 +651,7 @@ class ParametersList(AppDataList["Parameter"]):
         The parameters in this list.
     """
 
-    _child_objects = (
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="_objects",
             class_name="Parameter",
@@ -695,7 +695,7 @@ class CommandFilesList(AppDataList["FileSpec"]):
         The files in this list.
     """
 
-    _child_objects = (
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="_objects",
             class_name="FileSpec",
@@ -767,7 +767,7 @@ class ResourceList(ObjectList["ResourceSpec"]):
         The resource descriptions in this list.
     """
 
-    _child_objects = (
+    _child_objects: ClassVar[tuple[ChildObjectSpec, ...]] = (
         ChildObjectSpec(
             name="_objects",
             class_name="ResourceSpec",

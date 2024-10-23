@@ -817,7 +817,6 @@ class ZarrPersistentStore(
         new_data: list[dict[str, Any] | int] = []
         param_encode_root_group = self._get_parameter_user_array_group(mode="r+")
         for param_id, (value, is_file) in set_parameters.items():
-
             param_i = params[param_id]
             if is_file:
                 param_i = param_i.set_file(value)
@@ -1184,7 +1183,6 @@ class ZarrPersistentStore(
     def _get_persistent_parameters(
         self, id_lst: Iterable[int], *, dataset_copy: bool = False, **kwargs
     ) -> dict[int, ZarrStoreParameter]:
-
         params, id_lst = self._get_cached_persistent_parameters(id_lst)
         if id_lst:
             base_arr = self._get_parameter_base_array(mode="r")

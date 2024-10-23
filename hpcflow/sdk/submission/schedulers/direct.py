@@ -9,6 +9,7 @@ from typing import overload, cast, TYPE_CHECKING
 from typing_extensions import override, TypeAlias
 import psutil
 
+from hpcflow.sdk.typing import hydrate
 from hpcflow.sdk.submission.enums import JobscriptElementState
 from hpcflow.sdk.submission.schedulers import Scheduler
 
@@ -201,6 +202,7 @@ class DirectScheduler(Scheduler[DirectRef]):
         return proc.cmdline() == process_cmdline
 
 
+@hydrate
 class DirectPosix(DirectScheduler):
     """
     A direct scheduler for POSIX systems.
@@ -219,6 +221,7 @@ class DirectPosix(DirectScheduler):
     DEFAULT_SHELL_EXECUTABLE: ClassVar[str] = "/bin/bash"
 
 
+@hydrate
 class DirectWindows(DirectScheduler):
     """
     A direct scheduler for Windows.

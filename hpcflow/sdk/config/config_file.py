@@ -138,12 +138,10 @@ class ConfigFile:
                 else:
                     all_matches[c_name_i] = len(c_dat_i["invocation"]["match"])
 
-            if all_matches:
-                # for multiple matches select the more specific one:
-                all_sorted = sorted(all_matches.items(), key=lambda x: x[1], reverse=True)
-                config_key = all_sorted[0][0]
-            else:
+            if not all_matches:
                 raise ConfigFileInvocationIncompatibleError(config_key)
+            # for multiple matches select the more specific one:
+            config_key = max(all_matches.items(), key=lambda x: x[1])[0]
 
         elif config_key not in configs:
             raise ConfigInvocationKeyNotFoundError(config_key, path, list(configs))
@@ -152,8 +150,7 @@ class ConfigFile:
 
     def _validate(self, data: dict[str, Any] | None) -> Schema:
         file_schema = get_schema("config_file_schema.yaml")
-        file_validated = file_schema.validate(data)
-        if not file_validated.is_valid:
+        if not (file_validated := file_schema.validate(data)).is_valid:
             raise ConfigFileValidationError(file_validated.get_failures_string())
         return file_schema
 

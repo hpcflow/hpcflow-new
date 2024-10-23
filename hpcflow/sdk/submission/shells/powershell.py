@@ -7,6 +7,7 @@ import subprocess
 from textwrap import dedent, indent
 from typing import TYPE_CHECKING
 from typing_extensions import override
+from hpcflow.sdk.typing import hydrate
 from hpcflow.sdk.core import ABORT_EXIT_CODE
 from hpcflow.sdk.submission.shells.base import Shell
 from hpcflow.sdk.submission.shells.os_version import get_OS_info_windows
@@ -16,6 +17,7 @@ if TYPE_CHECKING:
     from .base import VersionInfo
 
 
+@hydrate
 class WindowsPowerShell(Shell):
     """Class to represent using PowerShell on Windows to generate and submit a jobscript."""
 

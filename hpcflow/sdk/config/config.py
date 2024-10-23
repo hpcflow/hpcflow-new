@@ -576,10 +576,9 @@ class Config:
             )
             return path
         real_path = Path(path).expanduser()
-        if not real_path.is_absolute():
-            cfg_dir = self._meta_data["config_directory"]
-            real_path = cfg_dir.joinpath(real_path)
-        return real_path
+        if real_path.is_absolute():
+            return real_path
+        return self._meta_data["config_directory"].joinpath(real_path)
 
     def register_config_get_callback(
         self, name: str
@@ -670,15 +669,14 @@ class Config:
     def _show(self, config: bool = True, metadata: bool = False):
         group_args: list[Panel] = []
         if metadata:
-            tab_md = Table(show_header=False, box=None)
-            tab_md.add_column()
-            tab_md.add_column()
+            tab = Table(show_header=False, box=None)
+            tab.add_column()
+            tab.add_column()
             for k, v in self._meta_data.items():
                 if k == "config_file_contents":
                     continue
-                tab_md.add_row(k, Pretty(v))
-            panel_md = Panel(tab_md, title="Config metadata")
-            group_args.append(panel_md)
+                tab.add_row(k, Pretty(v))
+            group_args.append(Panel(tab, title="Config metadata"))
 
         if config:
             tab = Table(show_header=False, box=None)
@@ -686,11 +684,9 @@ class Config:
             tab.add_column()
             for k, v in self.get_all().items():
                 tab.add_row(k, Pretty(v))
-            panel = Panel(tab, title=f"Config {self._config_key!r}")
-            group_args.append(panel)
+            group_args.append(Panel(tab, title=f"Config {self._config_key!r}"))
 
-        group = Group(*group_args)
-        rich_print(group)
+        rich_print(Group(*group_args))
 
     def _get_callback_value(self, name: str, value):
         if name in self._get_callbacks and value is not None:
@@ -816,8 +812,8 @@ class Config:
             value = self._parse_JSON(name, cast(str, value))
         current_val = self._get(name)
         callback_val = self._get_callback_value(name, value)
-        file_val_raw = self._file.get_config_item(self._config_key, name)
-        file_val = self._get_callback_value(name, file_val_raw)
+        file_val = self._get_callback_value(
+            name, self._file.get_config_item(self._config_key, name))
 
         if callback_val != current_val:
             was_in_modified = False
@@ -944,14 +940,37 @@ class Config:
             self._unset_keys.remove(name)
             raise ConfigChangeValidationError(name, validation_err=err) from None
 
+    @overload
     def get(
         self,
         path: str,
         *,
         callback: bool = True,
         copy: bool = False,
-        ret_root: bool = False,
-        ret_parts: bool = False,
+        ret_root_and_parts: Literal[False] = False,
+        default: Any | None = None,
+    ) -> Any:
+        ...
+
+    @overload
+    def get(
+        self,
+        path: str,
+        *,
+        callback: bool = True,
+        copy: bool = False,
+        ret_root_and_parts: Literal[True],
+        default: Any | None = None,
+    ) -> tuple[Any, Any, list[str]]:
+        ...
+
+    def get(
+        self,
+        path: str,
+        *,
+        callback: bool = True,
+        copy: bool = False,
+        ret_root_and_parts: bool = False,
         default: Any | None = None,
     ) -> Any:
         """
@@ -970,14 +989,9 @@ class Config:
             out = default
         if copy:
             out = deepcopy(out)
-        if not (ret_root or ret_parts):
+        if not ret_root_and_parts:
             return out
-        ret = [out]
-        if ret_root:
-            ret += [root]
-        if ret_parts:
-            ret += [parts]
-        return tuple(ret)
+        return out, root, parts
 
     def append(self, path: str, value, *, is_json: bool = False) -> None:
         """
@@ -995,8 +1009,7 @@ class Config:
 
         existing, root, parts = self.get(
             path,
-            ret_root=True,
-            ret_parts=True,
+            ret_root_and_parts=True,
             callback=False,
             default=[],
         )
@@ -1033,7 +1046,7 @@ class Config:
             value = self._parse_JSON(path, value)
 
         existing, root, parts = self.get(
-            path, ret_root=True, ret_parts=True, callback=False, default=[]
+            path, ret_root_and_parts=True, callback=False, default=[]
         )
 
         try:
@@ -1066,8 +1079,7 @@ class Config:
         """
         existing, root, parts = self.get(
             path,
-            ret_root=True,
-            ret_parts=True,
+            ret_root_and_parts=True,
             callback=False,
             default=[],
         )
@@ -1110,8 +1122,7 @@ class Config:
         val_mod, root, parts = self.get(
             path,
             copy=True,
-            ret_root=True,
-            ret_parts=True,
+            ret_root_and_parts=True,
             callback=False,
             default={},
         )
@@ -1266,8 +1277,7 @@ class Config:
 
             # sort in reverse so "schedulers" and "shells" are set before
             # "default_scheduler" and "default_shell" which might reference the former:
-            sorted_config = dict(sorted(new_config.items(), reverse=True))
-            for k, v in sorted_config.items():
+            for k, v in sorted(new_config.items(), reverse=True):
                 status.update(f"Updating configurable item {k!r}")
                 obj.set(k, value=v, quiet=True)
 
@@ -1313,6 +1323,5 @@ class Config:
         changes to the demo data.
         """
         assert self._app.demo_data_dir is not None
-        path = "/".join(self._app.demo_data_dir.split("."))
-        url = self._app._get_github_url(sha=sha, path=path)
-        self.set("demo_data_dir", url)
+        self.set("demo_data_dir", self._app._get_github_url(
+            sha=sha, path="/".join(self._app.demo_data_dir.split("."))))

@@ -1873,11 +1873,11 @@ class PersistentStore(
         return tasks_new
 
     def __process_retrieved_loops(
-        self, loops: dict[int, LoopDescriptor]
+        self, loops: Iterable[tuple[int, LoopDescriptor]]
     ) -> dict[int, LoopDescriptor]:
         """Add pending data to retrieved loops."""
         loops_new: dict[int, LoopDescriptor] = {}
-        for id_, loop_i in loops.items():
+        for id_, loop_i in loops:
             if "num_added_iterations" not in loop_i:
                 loop_i["num_added_iterations"] = 1
             # consider pending changes to num added iterations:
@@ -1924,9 +1924,8 @@ class PersistentStore(
         tasks.update(self._pending.add_tasks)
 
         # order by index:
-        task_list = sorted(tasks.values(), key=lambda x: x.index)
-
-        return self.__process_retrieved_tasks(task_list)
+        return self.__process_retrieved_tasks(
+            sorted(tasks.values(), key=lambda x: x.index))
 
     @abstractmethod
     def _get_persistent_loops(
@@ -1944,7 +1943,7 @@ class PersistentStore(
         loops.update((i, self._pending.add_loops[i]) for i in id_pend)
 
         # order as requested:
-        return self.__process_retrieved_loops({id_: loops[id_] for id_ in ids})
+        return self.__process_retrieved_loops((id_, loops[id_]) for id_ in ids)
 
     def get_loops(self) -> dict[int, LoopDescriptor]:
         """Retrieve all loops, including pending."""
@@ -1953,9 +1952,7 @@ class PersistentStore(
         loops.update(self._pending.add_loops)
 
         # order by index/ID:
-        loops = dict(sorted(loops.items()))
-
-        return self.__process_retrieved_loops(loops)
+        return self.__process_retrieved_loops(sorted(loops.items()))
 
     @abstractmethod
     def _get_persistent_submissions(
