@@ -62,6 +62,7 @@ _EXE_PLAT_LOOKUP = {
     "macOS-dir.zip": "macOS folder",
 }
 
+
 def generate_download_links_table() -> str:
     """Generate install/index.rst file programmatically, including binary download links."""
     # Get just-released binaries:
@@ -152,7 +153,8 @@ def copy_all_demo_workflows(app: BaseApp):
             "obj": app.load_demo_workflow(name),
             "file_path": f"demo_workflow_{name}",
             "file_name": app.copy_demo_workflow(
-                name, dst=Path(f"reference/demo_workflow_{name}"), doc=False),
+                name, dst=Path(f"reference/demo_workflow_{name}"), doc=False
+            ),
         }
         for name in app.list_demo_workflows()
     }

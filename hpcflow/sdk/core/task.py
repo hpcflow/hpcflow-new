@@ -1122,9 +1122,13 @@ class Task(JSONLike):
             for es_i in src_task.element_sets:
                 # add any element set that has task sources for this parameter
                 es_i_idx = es_i.index
-                if es_i_idx is not None and es_i_idx not in es_idx and any(
-                    inp_src_i.source_type is InputSourceType.TASK
-                    for inp_src_i in es_i.input_sources.get(labelled_path, ())
+                if (
+                    es_i_idx is not None
+                    and es_i_idx not in es_idx
+                    and any(
+                        inp_src_i.source_type is InputSourceType.TASK
+                        for inp_src_i in es_i.input_sources.get(labelled_path, ())
+                    )
                 ):
                     es_idx.append(es_i_idx)
         else:

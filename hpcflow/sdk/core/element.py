@@ -1851,7 +1851,8 @@ class Element(AppAware):
 
         if task_insert_ID is not None:
             all_deps.intersection_update(
-                self.workflow.tasks.get(insert_ID=task_insert_ID).element_IDs)
+                self.workflow.tasks.get(insert_ID=task_insert_ID).element_IDs
+            )
 
         return self.workflow.get_elements_from_IDs(sorted(all_deps))
 

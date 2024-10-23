@@ -1925,7 +1925,8 @@ class PersistentStore(
 
         # order by index:
         return self.__process_retrieved_tasks(
-            sorted(tasks.values(), key=lambda x: x.index))
+            sorted(tasks.values(), key=lambda x: x.index)
+        )
 
     @abstractmethod
     def _get_persistent_loops(

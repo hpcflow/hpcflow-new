@@ -813,7 +813,8 @@ class Config:
         current_val = self._get(name)
         callback_val = self._get_callback_value(name, value)
         file_val = self._get_callback_value(
-            name, self._file.get_config_item(self._config_key, name))
+            name, self._file.get_config_item(self._config_key, name)
+        )
 
         if callback_val != current_val:
             was_in_modified = False
@@ -1323,5 +1324,9 @@ class Config:
         changes to the demo data.
         """
         assert self._app.demo_data_dir is not None
-        self.set("demo_data_dir", self._app._get_github_url(
-            sha=sha, path="/".join(self._app.demo_data_dir.split("."))))
+        self.set(
+            "demo_data_dir",
+            self._app._get_github_url(
+                sha=sha, path="/".join(self._app.demo_data_dir.split("."))
+            ),
+        )

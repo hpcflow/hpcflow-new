@@ -321,8 +321,11 @@ class ElementActionRun(AppAware):
         """
         The changes to the EAR working directory due to the execution of this EAR.
         """
-        if not self._ss_diff_obj and (ss := self.snapshot_start) and (
-                se := self.snapshot_end):
+        if (
+            not self._ss_diff_obj
+            and (ss := self.snapshot_start)
+            and (se := self.snapshot_end)
+        ):
             self._ss_diff_obj = DirectorySnapshotDiff(ss, se)
         return self._ss_diff_obj
 
@@ -805,11 +808,15 @@ class ElementActionRun(AppAware):
 
         # write the script if it is specified as a app data script, otherwise we assume
         # the script already exists in the working directory:
-        if (snip_path := self.action.get_snippet_script_path(self.action.script, self.env_spec)):
+        if snip_path := self.action.get_snippet_script_path(
+            self.action.script, self.env_spec
+        ):
             with Path(snip_path.name).open("wt", newline="\n") as fp:
                 fp.write(self.action.compose_source(snip_path))
 
-    def __write_json_inputs(self, in_vals: dict[str, ParameterValue], js_idx: int, js_act_idx: int):
+    def __write_json_inputs(
+        self, in_vals: dict[str, ParameterValue], js_idx: int, js_act_idx: int
+    ):
         in_vals_processed: dict[str, Any] = {}
         for k, v in in_vals.items():
             try:
@@ -817,19 +824,25 @@ class ElementActionRun(AppAware):
             except (AttributeError, NotImplementedError):
                 in_vals_processed[k] = v
 
-        with self.action.get_param_dump_file_path_JSON(js_idx, js_act_idx).open("wt") as fp:
+        with self.action.get_param_dump_file_path_JSON(js_idx, js_act_idx).open(
+            "wt"
+        ) as fp:
             json.dump(in_vals_processed, fp)
 
-    def __write_hdf5_inputs(self, in_vals: dict[str, ParameterValue], js_idx: int, js_act_idx: int):
+    def __write_hdf5_inputs(
+        self, in_vals: dict[str, ParameterValue], js_idx: int, js_act_idx: int
+    ):
         import h5py  # type: ignore
 
-        with h5py.File(self.action.get_param_dump_file_path_HDF5(js_idx, js_act_idx), mode="w") as h5file:
+        with h5py.File(
+            self.action.get_param_dump_file_path_HDF5(js_idx, js_act_idx), mode="w"
+        ) as h5file:
             for k, v in in_vals.items():
                 v.dump_to_HDF5_group(h5file.create_group(k))
 
     __source_writer_map: ClassVar = {
         "json": __write_json_inputs,
-        "hdf5": __write_hdf5_inputs
+        "hdf5": __write_hdf5_inputs,
     }
 
     def __output_index(self, param_name: str) -> int:
@@ -843,7 +856,9 @@ class ElementActionRun(AppAware):
         parameters = self._app.parameters
         for fmt in self.action.script_data_out_grouped:
             if fmt == "json":
-                with self.action.get_param_load_file_path_JSON(js_idx, js_act_idx).open(mode="rt") as f:
+                with self.action.get_param_load_file_path_JSON(js_idx, js_act_idx).open(
+                    mode="rt"
+                ) as f:
                     file_data: dict[str, Any] = json.load(f)
                     for param_name, param_dat in file_data.items():
                         param_id = self.__output_index(param_name)
@@ -856,7 +871,10 @@ class ElementActionRun(AppAware):
                             )
 
             elif fmt == "hdf5":
-                with h5py.File(self.action.get_param_load_file_path_HDF5(js_idx, js_act_idx), mode="r") as h5file:
+                with h5py.File(
+                    self.action.get_param_load_file_path_HDF5(js_idx, js_act_idx),
+                    mode="r",
+                ) as h5file:
                     for param_name, h5_grp in h5file.items():
                         if param_cls := parameters.get(param_name)._force_value_class():
                             param_cls.save_from_HDF5_group(

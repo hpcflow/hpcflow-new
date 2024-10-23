@@ -3045,7 +3045,7 @@ class Workflow(AppAware):
                         for act_idx in js_dat["elements"].values()
                         for act_idx_i in act_idx
                     ),
-                    key=lambda x: x[1]
+                    key=lambda x: x[1],
                 )
                 # task_elements: { JS_ELEM_IDX: [TASK_ELEM_IDX for each task insert ID]}
                 task_elements = {
@@ -3089,7 +3089,7 @@ class Workflow(AppAware):
                     # get indices of EARs that this element depends on:
                     EAR_deps_EAR_idx = [
                         dep_ear_id
-                        for main_ear_id in all_EAR_IDs 
+                        for main_ear_id in all_EAR_IDs
                         for dep_ear_id in all_EAR_objs[main_ear_id].get_EAR_dependencies()
                         if dep_ear_id not in EAR_ID_arr
                     ]
@@ -3102,7 +3102,9 @@ class Workflow(AppAware):
 
         return submission_jobscripts, all_element_deps
 
-    def __get_commands(self, jobscript: Jobscript, JS_action_idx: int, ear: ElementActionRun):
+    def __get_commands(
+        self, jobscript: Jobscript, JS_action_idx: int, ear: ElementActionRun
+    ):
         try:
             commands, shell_vars = ear.compose_commands(jobscript, JS_action_idx)
         except OutputFileParserNoOutputError:
@@ -3114,16 +3116,17 @@ class Workflow(AppAware):
         pieces = [commands]
         for cmd_idx, var_dat in shell_vars.items():
             for param_name, shell_var_name, st_typ in var_dat:
-                pieces.append(jobscript.shell.format_save_parameter(
-                    workflow_app_alias=jobscript.workflow_app_alias,
-                    param_name=param_name,
-                    shell_var_name=shell_var_name,
-                    EAR_ID=ear.id_,
-                    cmd_idx=cmd_idx,
-                    stderr=(st_typ == "stderr"),
-                ))
-        commands = jobscript.shell.wrap_in_subshell(
-            ''.join(pieces), ear.action.abortable)
+                pieces.append(
+                    jobscript.shell.format_save_parameter(
+                        workflow_app_alias=jobscript.workflow_app_alias,
+                        param_name=param_name,
+                        shell_var_name=shell_var_name,
+                        EAR_ID=ear.id_,
+                        cmd_idx=cmd_idx,
+                        stderr=(st_typ == "stderr"),
+                    )
+                )
+        commands = jobscript.shell.wrap_in_subshell("".join(pieces), ear.action.abortable)
 
         # add loop-check command if this is the last action of this loop iteration
         # for this element:
@@ -3142,7 +3145,7 @@ class Workflow(AppAware):
                         run_ID=ear.id_,
                     )
                     pieces.append(jobscript.shell.wrap_in_subshell(loop_cmd, False))
-            commands += ''.join(pieces)
+            commands += "".join(pieces)
         return commands
 
     def write_commands(
