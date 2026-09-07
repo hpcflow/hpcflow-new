@@ -2599,41 +2599,52 @@ class PersistentStore(
         self, id_lst: Iterable[int], cache: dict[int, T]
     ) -> tuple[dict[int, T], list[int]]:
         """How to get things out of the cache. Caller says which cache."""
-        if self.use_cache:
-            id_cached = set(id_lst)
-            id_non_cached = sorted(id_cached.difference(cache))
-            id_cached.intersection_update(cache)
-            items = {id_: cache[id_] for id_ in sorted(id_cached)}
-        else:
-            items = {}
-            id_non_cached = list(id_lst)
+
+        if not self.use_cache:
+            return {}, list(id_lst)
+
+        items = {}
+        id_non_cached = []
+
+        for id_ in id_lst:
+            if id_ in cache:
+                items[id_] = cache[id_]
+            else:
+                id_non_cached.append(id_)
+
         return items, id_non_cached
 
+    @TimeIt.decorator
     def _get_cached_persistent_EARs(
         self, id_lst: Iterable[int]
     ) -> tuple[dict[int, AnySEAR], list[int]]:
         return self.__get_cached_persistent_items(id_lst, self.EAR_cache)
 
+    @TimeIt.decorator
     def _get_cached_persistent_element_iters(
         self, id_lst: Iterable[int]
     ) -> tuple[dict[int, AnySElementIter], list[int]]:
         return self.__get_cached_persistent_items(id_lst, self.element_iter_cache)
 
+    @TimeIt.decorator
     def _get_cached_persistent_elements(
         self, id_lst: Iterable[int]
     ) -> tuple[dict[int, AnySElement], list[int]]:
         return self.__get_cached_persistent_items(id_lst, self.element_cache)
 
+    @TimeIt.decorator
     def _get_cached_persistent_tasks(
         self, id_lst: Iterable[int]
     ) -> tuple[dict[int, AnySTask], list[int]]:
         return self.__get_cached_persistent_items(id_lst, self.task_cache)
 
+    @TimeIt.decorator
     def _get_cached_persistent_param_sources(
         self, id_lst: Iterable[int]
     ) -> tuple[dict[int, ParamSource], list[int]]:
         return self.__get_cached_persistent_items(id_lst, self.param_sources_cache)
 
+    @TimeIt.decorator
     def _get_cached_persistent_parameters(
         self, id_lst: Iterable[int]
     ) -> tuple[dict[int, AnySParameter], list[int]]:
@@ -2707,21 +2718,18 @@ class PersistentStore(
         src.update((id_, self._pending.add_parameters[id_].source) for id_ in id_pend)
 
         # order as requested, and consider pending source updates:
+        pending_updates = self._pending.update_param_sources
+        if not pending_updates:
+            return [src[id_i] for id_i in ids]
+
         return [
-            self.__merge_param_source(
-                src[id_i], self._pending.update_param_sources.get(id_i)
+            (
+                {**src[id_i], **pend_src}
+                if (pend_src := pending_updates.get(id_i))
+                else src[id_i]
             )
             for id_i in ids
         ]
-
-    @staticmethod
-    def __merge_param_source(
-        src_i: ParamSource, pend_src: ParamSource | None
-    ) -> ParamSource:
-        """
-        Helper to merge a second dict in if it is provided.
-        """
-        return {**src_i, **pend_src} if pend_src else src_i
 
     @abstractmethod
     def _get_persistent_param_sources(
