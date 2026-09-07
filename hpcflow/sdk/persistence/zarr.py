@@ -363,6 +363,7 @@ class ZarrStoreElementIter(StoreElementIter[ListAny, ZarrAttrs]):
 
     @override
     @classmethod
+    @TimeIt.decorator
     def decode(cls, iter_dat: ListAny, attrs: ZarrAttrs) -> Self:
         """Initialise a `ZarrStoreElementIter` from persistent element iteration data"""
         obj_dat = {
@@ -463,6 +464,7 @@ class ZarrStoreEAR(StoreEAR[ListAny, ZarrAttrs]):
 
     @override
     @classmethod
+    @TimeIt.decorator
     def decode(
         cls,
         EAR_dat: ListAny,
@@ -623,6 +625,10 @@ class ZarrPersistentStore(
                 tuple[int, int], dict[tuple[int, int], ResolvedJobscriptBlockDependencies]
             ],
         ] = {}
+        # caches of parameter sources array, and data array zarr group:
+        self._parameter_sources_array: NDArray | None = None
+        # an empty dict means there are no parameter data array groups!
+        self._parameter_data_array_group: dict[int, NDArray] | None = None
 
         super().__init__(app, workflow, path, fs)
 
@@ -631,6 +637,56 @@ class ZarrPersistentStore(
         """Context manager to cache the root attributes."""
         with self.using_resource("attrs", "read") as attrs:
             yield
+
+    def _reset_cache(self):
+        super()._reset_cache()
+        self._param_file_cache = {}
+
+    @contextmanager
+    def parameters_metadata_cache(self) -> Iterator[None]:
+        """Context manager for using the parameters-metadata cache, which here means
+        caching the parameter sources array."""
+        if self._use_parameters_metadata_cache:
+            yield
+        else:
+            self._use_parameters_metadata_cache = True
+            self._parameter_sources_array = None  # clear cache data
+            self._parameter_data_array_group = None
+            try:
+                yield
+            finally:
+                self._use_parameters_metadata_cache = False
+                self._parameter_sources_array = None  # clear cache data
+                self._parameter_data_array_group = None
+
+    @TimeIt.decorator
+    def get_parameter_sources_array(self) -> NDArray:
+        if self._use_parameters_metadata_cache:
+            if self._parameter_sources_array is None:
+                self._parameter_sources_array = self._get_parameter_sources_array()[:]
+            return self._parameter_sources_array
+        return self._get_parameter_sources_array()[:]
+
+    @TimeIt.decorator
+    def get_parameter_data_array_group(self, parameter_idx: int) -> dict[int, Group]:
+        if self._use_parameters_metadata_cache:
+            if self._parameter_data_array_group is None:
+                # add just keys to the cache first
+                self._parameter_data_array_group = dict.fromkeys(
+                    self._get_parameter_user_array_group().keys()
+                )
+            if (
+                key := self._param_data_arr_grp_name(parameter_idx)
+            ) not in self._parameter_data_array_group:
+                # no array group exists for this parameter
+                return None
+            else:
+                self._parameter_data_array_group[key] = (
+                    self._get_parameter_data_array_group(parameter_idx)
+                )
+            return self._parameter_data_array_group[key]
+
+        return self._get_parameter_data_array_group(parameter_idx)
 
     def remove_replaced_dir(self) -> None:
         """
@@ -1600,7 +1656,13 @@ class ZarrPersistentStore(
 
     def _get_num_persistent_elem_iters(self) -> int:
         """Get the number of persistent element iterations."""
-        return len(self._get_iters_arr())
+        if self.use_cache and self.num_iters_cache is not None:
+            num = self.num_iters_cache
+        else:
+            num = len(self._get_iters_arr())
+        if self.use_cache and self.num_iters_cache is None:
+            self.num_iters_cache = num
+        return num
 
     @TimeIt.decorator
     def _get_num_persistent_EARs(self) -> int:
@@ -1618,7 +1680,7 @@ class ZarrPersistentStore(
         if self.use_cache and self.num_params_cache is not None:
             num = self.num_params_cache
         else:
-            num = len(self._get_parameter_sources_array())
+            num = len(self.get_parameter_sources_array())
         if self.use_cache and self.num_params_cache is None:
             self.num_params_cache = num
         return num
@@ -1650,12 +1712,15 @@ class ZarrPersistentStore(
     def _get_parameter_group(self, mode: str = "r", **kwargs) -> Group:
         return self._get_root_group(mode=mode, **kwargs).get(self._param_grp_name)
 
+    @TimeIt.decorator
     def _get_parameter_sources_array(self, mode: str = "r") -> Array:
         return self._get_parameter_group(mode=mode).get(self._param_sources_arr_name)
 
+    @TimeIt.decorator
     def _get_parameter_user_array_group(self, mode: str = "r") -> Group:
         return self._get_parameter_group(mode=mode).get(self._param_user_arr_grp_name)
 
+    @TimeIt.decorator
     def _get_parameter_data_array_group(
         self,
         parameter_idx: int,
@@ -1733,21 +1798,27 @@ class ZarrPersistentStore(
             self._js_deps_arr_name
         )
 
+    @TimeIt.decorator
     def _get_tasks_arr(self, mode: str = "r") -> Array:
         return self._get_metadata_group(mode=mode).get(self._task_arr_name)
 
+    @TimeIt.decorator
     def _get_elements_arr(self, mode: str = "r") -> Array:
         return self._get_metadata_group(mode=mode).get(self._elem_arr_name)
 
+    @TimeIt.decorator
     def _get_iters_arr(self, mode: str = "r") -> Array:
         return self._get_metadata_group(mode=mode).get(self._iter_arr_name)
 
+    @TimeIt.decorator
     def _get_run_metadata_arr(self, mode: str = "r") -> Array:
         return self._get_metadata_group(mode=mode).get(self._run_metadata_arr_name)
 
+    @TimeIt.decorator
     def _get_EARs_sub_dat_arr(self, mode: str = "r") -> Array:
         return self._get_metadata_group(mode=mode).get(self._run_sub_metadata_arr_name)
 
+    @TimeIt.decorator
     def _get_dirs_arr(self, mode: str = "r") -> zarr.Array:
         return self._get_metadata_group(mode=mode).get(self._run_dir_arr_name)
 
@@ -2251,15 +2322,13 @@ class ZarrPersistentStore(
     def _get_base_parameters(
         self, id_lst: Iterable[int]
     ) -> tuple[dict[int, Any], dict[int, Any]]:
-        # TODO: implement the "parameter_metadata_cache" for zarr stores, which would
-        # keep the src_arr open
-        src_arr = self._get_parameter_sources_array(mode="r")
+        src_arr = self.get_parameter_sources_array()
 
         id_lst = list(id_lst)
 
         try:
-            src_arr_dat = src_arr.get_coordinate_selection(list(id_lst))
-        except BoundsCheckError:
+            src_arr_dat = src_arr[id_lst]
+        except IndexError:
             raise MissingParameterData(id_lst) from None
 
         src_dat = dict(zip(id_lst, src_arr_dat))
@@ -2329,7 +2398,7 @@ class ZarrPersistentStore(
                     id_=k,
                     data=v,
                     source=src_dat[k],
-                    arr_group=self._get_parameter_data_array_group(k),
+                    arr_group=self.get_parameter_data_array_group(k),
                     dataset_copy=dataset_copy,
                 )
                 for k, v in param_dat.items()
@@ -2345,10 +2414,10 @@ class ZarrPersistentStore(
     ) -> dict[int, ParamSource]:
         sources, id_lst = self._get_cached_persistent_param_sources(id_lst)
         if id_lst:
-            src_arr = self._get_parameter_sources_array(mode="r")
+            src_arr = self.get_parameter_sources_array()
             try:
-                src_arr_dat = src_arr.get_coordinate_selection(list(id_lst))
-            except BoundsCheckError:
+                src_arr_dat = src_arr[id_lst]
+            except IndexError:
                 raise MissingParameterData(id_lst) from None
             new_sources = dict(zip(id_lst, src_arr_dat))
             self.param_sources_cache.update(new_sources)

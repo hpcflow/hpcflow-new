@@ -318,12 +318,16 @@ class JSONPersistentStore(
     @contextmanager
     def parameters_metadata_cache(self) -> Iterator[None]:
         """Context manager for using the parameters-metadata cache."""
-        self._use_parameters_metadata_cache = True
-        try:
+        if self._use_parameters_metadata_cache:
             yield
-        finally:
-            self._use_parameters_metadata_cache = False
+        else:
+            self._use_parameters_metadata_cache = True
             self._parameters_file_dat = None  # clear cache data
+            try:
+                yield
+            finally:
+                self._use_parameters_metadata_cache = False
+                self._parameters_file_dat = None  # clear cache data
 
     def remove_replaced_dir(self) -> None:
         """
