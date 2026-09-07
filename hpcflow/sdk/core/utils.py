@@ -291,6 +291,7 @@ def set_in_container(
     sub_data[path_comp] = value
 
 
+@TimeIt.decorator
 def get_relative_path(path1: Sequence[T], path2: Sequence[T]) -> Sequence[T]:
     """Get relative path components between two paths.
 
@@ -1017,6 +1018,7 @@ def linspace_rect(
     return np.hstack(stacked)
 
 
+@TimeIt.decorator
 def dict_values_process_flat(
     d: Mapping[T, T2 | list[T2]], callable: Callable[[list[T2]], list[T3]]
 ) -> Mapping[T, T3 | list[T3]]:
@@ -1031,29 +1033,28 @@ def dict_values_process_flat(
     {'a': 1, 'b': [2, 3], 'c': 6}
 
     """
-    flat: list[T2] = []  # values of `d`, flattened
-    is_multi: list[tuple[bool, int]] = (
-        []
-    )  # whether a list, and the number of items to process
-    for i in d.values():
-        if isinstance(i, list):
-            flat.extend(cast("list[T2]", i))
-            is_multi.append((True, len(i)))
+    flat: list[T2] = []
+    lengths: list[int] = []  # length 0 indicates a scalar
+    for value in d.values():
+        if isinstance(value, list):
+            flat.extend(value)
+            lengths.append(len(value))
         else:
-            flat.append(cast("T2", i))
-            is_multi.append((False, 1))
+            flat.append(value)
+            lengths.append(0)
 
     processed = callable(flat)
 
-    out: dict[T, T3 | list[T3]] = {}
-    for idx_i, (m, k) in enumerate(zip(is_multi, d)):
-        start_idx = sum(i[1] for i in is_multi[:idx_i])
-        end_idx = start_idx + m[1]
-        proc_idx_k = processed[start_idx:end_idx]
-        if not m[0]:
-            out[k] = proc_idx_k[0]
+    out = {}
+    offset = 0
+
+    for key, length in zip(d, lengths):
+        if length:
+            out[key] = processed[offset : offset + length]
+            offset += length
         else:
-            out[k] = proc_idx_k
+            out[key] = processed[offset]
+            offset += 1
 
     return out
 
