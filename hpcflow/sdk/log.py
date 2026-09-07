@@ -80,6 +80,7 @@ class TimeIt:
                 return func(*args, **kwargs)
 
             cls.trace.append(func.__qualname__)
+            trace_key = tuple(cls.trace)
 
             if cls.trace_prev == cls.trace:
                 new_trace_idx = cls.trace_idx_prev[-1] + 1
@@ -88,19 +89,20 @@ class TimeIt:
             cls.trace_idx.append(new_trace_idx)
 
             tic = time.perf_counter()
-            out = func(*args, **kwargs)
-            toc = time.perf_counter()
-            elapsed = toc - tic
 
-            cls.timers[tuple(cls.trace)].append(elapsed)
+            try:
+                return func(*args, **kwargs)
+            finally:
+                toc = time.perf_counter()
+                elapsed = toc - tic
 
-            cls.trace_prev = list(cls.trace)
-            cls.trace_idx_prev = list(cls.trace_idx)
+                cls.timers[trace_key].append(elapsed)
 
-            cls.trace.pop()
-            cls.trace_idx.pop()
+                cls.trace_prev = list(cls.trace)
+                cls.trace_idx_prev = list(cls.trace_idx)
 
-            return out
+                cls.trace.pop()
+                cls.trace_idx.pop()
 
         return wrapper
 
@@ -154,7 +156,7 @@ class TimeIt:
                 k_str = bars + (angle if depth > 0 else "") + f"{k[depth]}"
                 min_str = f"{v.min/unit:10.3f}" if v.number > 1 else f"{f'-':^12s}"
                 max_str = f"{v.max/unit:10.3f}" if v.number > 1 else f"{f'-':^12s}"
-                stddev_str = f"({v.stddev:8.3f})" if v.number > 1 else f"{f' ':^10s}"
+                stddev_str = f"({v.stddev/unit:8.3f})" if v.number > 1 else f"{f' ':^10s}"
                 out.append(
                     f"{k_str:.<80s} {v.sum/unit:12.3f} "
                     f"{v.mean/unit:10.3f} {stddev_str} {v.number:8d} "
