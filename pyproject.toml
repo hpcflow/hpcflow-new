@@ -48,6 +48,7 @@ numcodecs = [
 ]
 jinja2 = "^3.1.6"
 ipywidgets = "^8.1.8"
+zstandard = "^0.25.0"
 
 [tool.poetry.group.dev.dependencies]
 pylint = ">=2.12.2,<5.0.0"

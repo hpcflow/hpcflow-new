@@ -2911,6 +2911,22 @@ class PersistentStore(
 
         return _delete_no_confirm()
 
+    def get_binary_file(self, path: str | Path) -> bytes:
+        """Retrieve the contents of a binary file stored within the workflow.
+
+        Parameters
+        ----------
+        path
+            The path to a binary file stored within the workflow. This can either be an
+            absolute path or a path that is relative to the workflow root.
+        """
+        path = Path(path)
+        if not path.is_absolute():
+            path = Path(self.path).joinpath(path)
+        if not path.is_file():
+            raise FileNotFoundError(f"File at location {path!r} does not exist.")
+        return path.read_bytes()
+
     def get_text_file(self, path: str | Path) -> str:
         """Retrieve the contents of a text file stored within the workflow.
 
@@ -2920,12 +2936,7 @@ class PersistentStore(
             The path to a text file stored within the workflow. This can either be an
             absolute path or a path that is relative to the workflow root.
         """
-        path = Path(path)
-        if not path.is_absolute():
-            path = Path(self.path).joinpath(path)
-        if not path.is_file():
-            raise FileNotFoundError(f"File at location {path!r} does not exist.")
-        return path.read_text()
+        return self.get_binary_file(path).decode()
 
     @abstractmethod
     def _append_task_element_IDs(self, task_ID: int, elem_IDs: list[int]):

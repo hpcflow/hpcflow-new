@@ -715,6 +715,7 @@ class WorkflowLoop(AppAware):
 
         new_run_meta: dict[int, tuple[int, int]] = {}
         for task in self.task_objects:
+            schema_output_indices, _ = task.template.schema.get_output_indices()
             new_loop_idx = LoopIndex(iters_key_dct) + {
                 child.name: 0
                 for child in child_loops
@@ -817,7 +818,8 @@ class WorkflowLoop(AppAware):
 
                 for out in task.template.all_schema_outputs:
                     path_i = f"outputs.{out.typ}"
-                    p_src: ParamSource = {"type": "EAR_output"}
+                    out_index = schema_output_indices[path_i]
+                    p_src: ParamSource = {"type": "EAR_output", "output_idx": out_index}
                     new_data_idx[path_i] = self.workflow._add_unset_parameter_data(p_src)
 
                 schema_params = set(i for i in new_data_idx if len(i.split(".")) == 2)

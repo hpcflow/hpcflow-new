@@ -25,6 +25,7 @@ from fsspec.implementations.zip import ZipFileSystem  # type: ignore
 from rich.console import Console
 from numcodecs import MsgPack, VLenArray, blosc, Blosc, Zstd  # type: ignore
 from reretry import retry  # type: ignore
+import zstandard as zstd
 
 from hpcflow.sdk.submission.run_file_resolver import get_run_multi_chunk_path
 from hpcflow.sdk.typing import hydrate
@@ -111,6 +112,32 @@ _JS: TypeAlias = "dict[str, list[dict[str, dict]]]"
 
 
 blosc.use_threads = False  # hpcflow is a multiprocess program in general
+
+
+#: Magic token to indicate the compression schema used to encode base-parameter files
+MAGIC = b"HPCFZ1"
+#: Zstd compressor object, for compressing base-parameter files.
+_ZSTD_COMPRESSOR = zstd.ZstdCompressor(level=1)
+#: Zstd decompressor object, for decompressing base-parameter files.
+_ZSTD_DECOMPRESSOR = zstd.ZstdDecompressor()
+
+
+@TimeIt.decorator
+def encode_msgpack(data) -> bytes:
+    """Encode data as zstd-compressed MessagePack."""
+    packed = msgpack.packb(data)
+    return MAGIC + _ZSTD_COMPRESSOR.compress(packed)
+
+
+@TimeIt.decorator
+def decode_msgpack(data: bytes):
+    """Decode data as zstd-compressed MessagePack."""
+    if data.startswith(MAGIC):
+        packed = _ZSTD_DECOMPRESSOR.decompress(data[len(MAGIC) :])
+    else:
+        # uncompressed msgpack
+        packed = data
+    return msgpack.unpackb(packed)
 
 
 @TimeIt.decorator
@@ -1447,7 +1474,7 @@ class ZarrPersistentStore(
         param_encode_root_group = self._get_parameter_user_array_group(mode="r+")
         param_enc: list[dict[str, Any] | int] = []
         src_enc: list[dict] = []
-        local_ins_enc: dict[int, Any] = {}
+        local_ins_enc: dict[tuple[int, int], Any] = {}
         with self.__mutate_attrs(src_arr) as attrs:
             for param_i in params:
                 dat_i = param_i.encode(
@@ -1460,7 +1487,7 @@ class ZarrPersistentStore(
                     non_output_idx = attrs["num_non_output_params"]
                     param_i.source["non_output_idx"] = non_output_idx
                     attrs["num_non_output_params"] += 1
-                    local_ins_enc[non_output_idx] = dat_i
+                    local_ins_enc[(0, non_output_idx)] = dat_i
                 elif param_i.is_set:
                     raise RuntimeError(
                         f"Not expected to append an already-set EAR_output parameter: "
@@ -1499,9 +1526,14 @@ class ZarrPersistentStore(
             src_type = param_i.source["type"]
             if src_type == "EAR_output":
                 src_run_ID = param_i.source["EAR_ID"]
-                param_updates[src_run_ID] = param_i.encode(
-                    root_group=param_encode_root_group,
-                    arr_path=self._param_data_arr_grp_name(param_i.id_),
+                param_updates[src_run_ID].append(
+                    (
+                        param_i.source["output_idx"],
+                        param_i.encode(
+                            root_group=param_encode_root_group,
+                            arr_path=self._param_data_arr_grp_name(param_i.id_),
+                        ),
+                    )
                 )
             else:
                 raise RuntimeError("Expected run-output parameters only!")
@@ -1514,16 +1546,16 @@ class ZarrPersistentStore(
         for submission_idx, files in run_file_lookup.items():
             for file_ID, indices in files.items():
                 for run_id, run_idx in indices.items():
-                    param_out_data[submission_idx][file_ID][run_idx] = param_updates[
-                        run_id
-                    ]
+                    for out_idx, param_upd in param_updates[run_id]:
+                        param_out_data[submission_idx][file_ID][
+                            run_idx, out_idx
+                        ] = param_upd
 
-        self.write_param_files(
-            {
-                submission_idx: dict(files)
-                for submission_idx, files in param_out_data.items()
-            }
-        )
+        write_data = {
+            submission_idx: dict(files)
+            for submission_idx, files in param_out_data.items()
+        }
+        self.write_param_files(write_data)
 
     def _update_parameter_sources(self, sources: Mapping[int, ParamSource]):
         """Update the sources of multiple persistent parameters."""
@@ -1976,19 +2008,19 @@ class ZarrPersistentStore(
             paths = get_run_multi_chunk_path(idx=file_IDs, prefix=prefix)
 
             for path, indices in zip(paths, files.values()):
-                if path.exists():
-                    with open(path, "rb") as f:
-                        runs = msgpack.unpackb(f.read())
-
-                    for run_id, idx in indices.items():
-                        if idx >= len(runs):
-                            data[run_id] = None
-                        else:
-                            data[run_id] = runs[idx]
-
-                else:
+                try:
+                    raw = self.get_binary_file(path)
+                except FileNotFoundError:
                     for run_id in indices:
                         data[run_id] = None
+                    continue
+
+                runs = msgpack.unpackb(raw)
+                for run_id, idx in indices.items():
+                    if idx >= len(runs):
+                        data[run_id] = None
+                    else:
+                        data[run_id] = runs[idx]
 
         return data
 
@@ -2056,18 +2088,18 @@ class ZarrPersistentStore(
     @TimeIt.decorator
     def read_param_files(
         self,
-        run_file_lookup: dict[int, dict[int, dict[int, int]]],
+        run_file_lookup: dict[int, dict[int, dict[int, tuple[int, int]]]],
     ):
         """
         Parameters
         ----------
         run_file_lookup
             Keys are submission indices. Values map file IDs to dictionaries
-            mapping parameter source run IDs to indices within those files.
+            mapping parameter source run IDs to indices within those files, and keys
+            within those indices as a tuple: (list-idx, dict-key).
         """
 
         data = {}
-
         for submission_idx, files in run_file_lookup.items():
             prefix = self._get_param_multi_dir_path(submission_idx)
 
@@ -2075,25 +2107,28 @@ class ZarrPersistentStore(
             paths = get_run_multi_chunk_path(idx=file_IDs, prefix=prefix)
 
             for path, indices in zip(paths, files.values()):
-                if path.exists():
-                    with open(path, "rb") as f:
-                        params = msgpack.unpackb(f.read())
 
-                    for src_run_id, idx in indices.items():
-                        if idx >= len(params):
-                            data[src_run_id] = None
-                        else:
-                            data[src_run_id] = params[idx]
-                else:
-                    for src_run_id in indices:
-                        data[src_run_id] = None
+                try:
+                    raw = self.get_binary_file(path)
+                except FileNotFoundError:
+                    for param_id in indices:
+                        data[param_id] = None
+                    continue
+
+                params = decode_msgpack(raw)
+
+                for param_id, (idx, key) in indices.items():
+                    if idx >= len(params):
+                        data[param_id] = None
+                    else:
+                        data[param_id] = params[idx].get(str(key))
 
         return data
 
     @TimeIt.decorator
     def write_param_files(
         self,
-        data: dict[int, dict[int, dict[int, Any]]],
+        data: dict[int, dict[int, dict[tuple[int, int], Any]]],
     ):
         """
         Parameters
@@ -2110,7 +2145,7 @@ class ZarrPersistentStore(
                     dict[
                         int,  # file_ID
                         dict[
-                            int,  # local index
+                            tuple(int, int),  # local index and key within that index
                             Any # data of a single parameter
                         ],
                     ],
@@ -2128,33 +2163,33 @@ class ZarrPersistentStore(
 
                 if path.exists():
                     with open(path, "rb") as f:
-                        params = msgpack.unpackb(f.read())
+                        params = decode_msgpack(f.read())
                 else:
                     params = []
 
-                max_idx = max(data_i)
+                max_idx = max((idx for idx, _ in data_i))
 
                 if len(params) <= max_idx:
                     num_new = max_idx + 1 - len(params)
-                    params.extend([None] * num_new)
+                    params.extend({} for _ in range(num_new))
 
-                for idx, upd_data in data_i.items():
-                    params[idx] = upd_data
+                for (idx, key), upd_data in data_i.items():
+                    params[idx][str(key)] = upd_data
 
-                encoded = msgpack.packb(params)
-                atomic_write(path, encoded)
+                atomic_write(path, encode_msgpack(params))
 
     def _get_run_file_lookup(
         self,
         id_lst: Iterable[int],
         submission_metadata: dict[int, tuple[int | None, ...]] | None = None,
         file_offset: int = 0,
+        keys: Iterable[int] | None = None,
     ) -> dict[int, dict[int, dict[int, int]]]:
         sub_dat = submission_metadata or self._get_run_submission_metadata(id_lst)
 
         run_file_lookup = defaultdict(lambda: defaultdict(dict))
 
-        for run_id, sub_dat_i in sub_dat.items():
+        for idx, (run_id, sub_dat_i) in enumerate(sub_dat.items()):
             submission_idx = sub_dat_i[0]
             file_ID = sub_dat_i[2]
             file_idx = sub_dat_i[3]
@@ -2165,9 +2200,10 @@ class ZarrPersistentStore(
             assert submission_idx is not None
             assert file_idx is not None
 
+            locator = (int(file_idx), keys[idx]) if keys is not None else int(file_idx)
             run_file_lookup[int(submission_idx)][int(file_ID) + file_offset][
                 int(run_id)
-            ] = int(file_idx)
+            ] = locator
 
         return run_file_lookup
 
@@ -2219,6 +2255,8 @@ class ZarrPersistentStore(
         # keep the src_arr open
         src_arr = self._get_parameter_sources_array(mode="r")
 
+        id_lst = list(id_lst)
+
         try:
             src_arr_dat = src_arr.get_coordinate_selection(list(id_lst))
         except BoundsCheckError:
@@ -2229,30 +2267,42 @@ class ZarrPersistentStore(
         # map run param IDs to source run IDs, and inverse:
         param_id_to_run_id = {}
         non_output_indices = {}
+        output_indices = {}
         for param_id, param_src in src_dat.items():
             if param_src["type"] == "EAR_output":
                 param_id_to_run_id[param_id] = param_src["EAR_ID"]
+                output_indices[param_id] = param_src["output_idx"]
             else:
-                non_output_indices[param_id] = param_src["non_output_idx"]
-
-        run_id_to_param_id = {
-            src_run_id: param_id for param_id, src_run_id in param_id_to_run_id.items()
-        }
-
-        src_run_id_lst = [
-            param_id_to_run_id[id_i] for id_i in id_lst if id_i in param_id_to_run_id
-        ]
+                non_output_indices[param_id] = (0, param_src["non_output_idx"])
 
         local_param_file_lookup = {0: {0: non_output_indices}}
         param_dat = self.read_param_files(local_param_file_lookup)
 
-        param_file_lookup = self._get_run_file_lookup(src_run_id_lst, file_offset=1)
+        output_param_ids = [
+            param_id for param_id in id_lst if param_id in param_id_to_run_id
+        ]
+        src_run_ids = [param_id_to_run_id[param_id] for param_id in output_param_ids]
+        submission_metadata = self._get_run_submission_metadata(src_run_ids)
 
-        # keys are source run ID, not parameter ID:
-        param_dat_by_run = self.read_param_files(param_file_lookup)
+        param_file_lookup = defaultdict(lambda: defaultdict(dict))
+        for param_id in output_param_ids:
+            src_run_id = param_id_to_run_id[param_id]
+            sub_dat_i = submission_metadata[src_run_id]
 
-        for run_id, dat_i in param_dat_by_run.items():
-            param_dat[run_id_to_param_id[run_id]] = dat_i
+            submission_idx = sub_dat_i[0]
+            file_ID = sub_dat_i[2]
+            file_idx = sub_dat_i[3]
+
+            if file_ID is None:
+                continue
+
+            param_file_lookup[int(submission_idx)][int(file_ID) + 1][int(param_id)] = (
+                int(file_idx),
+                int(output_indices[param_id]),
+            )
+
+        param_dat_by_output = self.read_param_files(param_file_lookup)
+        param_dat.update(param_dat_by_output)
 
         # fill in any unset parameters, for which, prior to submission,
         # `param_file_lookup` will be empty:
@@ -2309,7 +2359,7 @@ class ZarrPersistentStore(
         self, id_lst: Iterable[int]
     ) -> dict[int, bool]:
         param_dat, _ = self._get_base_parameters(id_lst)
-        return {id_i: dat_i is not None for id_i, dat_i in param_dat.item()}
+        return {id_i: dat_i is not None for id_i, dat_i in param_dat.items()}
 
     def _get_persistent_parameter_IDs(self) -> list[int]:
         return list(range(self._get_num_persistent_parameters()))
@@ -2855,17 +2905,17 @@ class ZarrZipPersistentStore(ZarrPersistentStore):
     ) -> Array:
         raise NotImplementedError
 
-    def get_text_file(self, path: str | Path) -> str:
-        """Retrieve the contents of a text file stored within the workflow."""
+    def get_binary_file(self, path: str | Path) -> bytes:
+        """Retrieve the contents of a binary file stored within the workflow."""
         path = Path(path)
         if path.is_absolute():
             path = path.relative_to(self.workflow.url)
         path = str(path.as_posix())
         assert self.fs
         try:
-            with self.fs.open(path, mode="rt") as fp:
+            with self.fs.open(path, mode="rb") as fp:
                 return fp.read()
-        except KeyError:
+        except (KeyError, FileNotFoundError):
             raise FileNotFoundError(
                 f"File within zip at location {path!r} does not exist."
             ) from None

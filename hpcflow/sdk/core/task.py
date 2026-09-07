@@ -1115,6 +1115,7 @@ class Task(JSONLike):
         # until we initialise EARs:
         output_data_indices: dict[str, list[int]] = {}
         for schema in self.schemas:
+            output_indices, _ = schema.get_output_indices()
             for output in schema.outputs:
                 # TODO: consider multiple schemas in action index?
 
@@ -1125,9 +1126,7 @@ class Task(JSONLike):
                     workflow._add_unset_parameter_data(
                         {
                             "type": "EAR_output",
-                            # "task_insert_ID": self.insert_ID,
-                            # "element_idx": idx,
-                            # "run_idx": 0,
+                            "output_idx": output_indices[path],
                         }
                     )
                     for idx in range(*local_element_idx_range)
@@ -1320,7 +1319,7 @@ class Task(JSONLike):
         """
         The outputs from this task's schemas.
         """
-        return tuple(inp_j for schema_i in self.schemas for inp_j in schema_i.outputs)
+        return tuple(out_j for schema_i in self.schemas for out_j in schema_i.outputs)
 
     @property
     def all_schema_input_types(self) -> set[str]:
@@ -2552,6 +2551,10 @@ class WorkflowTask(AppAware):
         # keys are parameter indices, values are EAR_IDs to update those sources to
         param_src_updates: dict[int, ParamSource] = {}
 
+        # keys are action indices, values are dicts whose keys are outputs/input-/output-
+        # file types and values are output indices:
+        _, output_indices = self.template.schema.get_output_indices()
+
         count = 0
         for act_idx, action in self.template.all_schema_actions():
             log_common = (
@@ -2578,6 +2581,7 @@ class WorkflowTask(AppAware):
                         all_data_idx=all_data_idx,
                         workflow=self.workflow,
                         param_source=param_source,
+                        output_indices=output_indices[act_idx],
                     )
                 )
                 # with EARs initialised, we can update the pre-allocated schema-level

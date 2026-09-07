@@ -3255,6 +3255,7 @@ class Action(JSONLike):
         all_data_idx: dict[tuple[int, int], DataIndex],
         workflow: Workflow,
         param_source: ParamSource,
+        output_indices: dict[str, int],
     ) -> list[int | list[int]]:
         """Generate the data index for this action of an element iteration whose overall
         data index is passed.
@@ -3316,7 +3317,9 @@ class Action(JSONLike):
                     else:
                         # otherwise we need to allocate a new parameter datum:
                         # (for input/output_files keys)
-                        k_idx = workflow._add_unset_parameter_data(param_source)
+                        param_source_i = copy.deepcopy(param_source)
+                        param_source_i["output_idx"] = output_indices[key]
+                        k_idx = workflow._add_unset_parameter_data(param_source_i)
 
             else:
                 # outputs
@@ -3326,8 +3329,9 @@ class Action(JSONLike):
                         k_idx = prev_data_idx[key]
 
                         # allocate a new parameter datum for this intermediate output:
-                        param_source_i = copy.copy(param_source)
+                        param_source_i = copy.deepcopy(param_source)
                         param_source_i["EAR_ID"] = EAR_ID_i
+                        param_source_i["output_idx"] = output_indices[key]
                         new_k_idx = workflow._add_unset_parameter_data(param_source_i)
 
                         # mutate `all_data_idx`:
