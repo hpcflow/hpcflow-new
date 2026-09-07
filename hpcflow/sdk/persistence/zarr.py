@@ -625,6 +625,10 @@ class ZarrPersistentStore(
                 tuple[int, int], dict[tuple[int, int], ResolvedJobscriptBlockDependencies]
             ],
         ] = {}
+
+        # cache base-parameter file data, if `self.use_cache`:
+        self._param_file_cache: dict[tuple[int, int], list[dict[str, Any]]] = {}
+
         # caches of parameter sources array, and data array zarr group:
         self._parameter_sources_array: NDArray | None = None
         # an empty dict means there are no parameter data array groups!
@@ -1304,6 +1308,7 @@ class ZarrPersistentStore(
             attrs["submission_parts"].update(metadata_i["submission_parts"])
             grp.attrs.put(attrs)
 
+    @TimeIt.decorator
     def __update_elem_iters(
         self,
         updates: Mapping[int, _UpdateT],
@@ -1336,6 +1341,7 @@ class ZarrPersistentStore(
         with self.using_resource("attrs", action="update") as attrs:
             attrs["loops"][index]["parents"] = parents
 
+    @TimeIt.decorator
     def _update_iter_data_indices(self, iter_data_indices: dict[int, DataIndex]):
         self.__update_elem_iters(
             iter_data_indices,
@@ -1613,6 +1619,7 @@ class ZarrPersistentStore(
         }
         self.write_param_files(write_data)
 
+    @TimeIt.decorator
     def _update_parameter_sources(self, sources: Mapping[int, ParamSource]):
         """Update the sources of multiple persistent parameters."""
 
@@ -2156,6 +2163,32 @@ class ZarrPersistentStore(
                 encoded = msgpack.packb(runs)
                 atomic_write(path, encoded)
 
+    def _get_param_file_data(
+        self, submission_idx: int, file_ID: int
+    ) -> list[dict[str, Any]]:
+
+        cache_key = (submission_idx, file_ID)
+        if self.use_cache:
+            if cache_key in self._param_file_cache:
+                return self._param_file_cache[cache_key]
+
+        path = get_run_multi_chunk_path(
+            idx=file_ID,
+            prefix=self._get_param_multi_dir_path(submission_idx),
+        )
+
+        try:
+            raw = self.get_binary_file(path)
+        except FileNotFoundError:
+            params = []
+        else:
+            params = decode_msgpack(raw)
+
+        if self.use_cache:
+            self._param_file_cache[cache_key] = params
+
+        return params
+
     @TimeIt.decorator
     def read_param_files(
         self,
@@ -2167,27 +2200,13 @@ class ZarrPersistentStore(
         run_file_lookup
             Keys are submission indices. Values map file IDs to dictionaries
             mapping parameter source run IDs to indices within those files, and keys
-            within those indices as a tuple: (list-idx, dict-key).
+            within
         """
 
         data = {}
         for submission_idx, files in run_file_lookup.items():
-            prefix = self._get_param_multi_dir_path(submission_idx)
-
-            file_IDs = list(files)
-            paths = get_run_multi_chunk_path(idx=file_IDs, prefix=prefix)
-
-            for path, indices in zip(paths, files.values()):
-
-                try:
-                    raw = self.get_binary_file(path)
-                except FileNotFoundError:
-                    for param_id in indices:
-                        data[param_id] = None
-                    continue
-
-                params = decode_msgpack(raw)
-
+            for file_ID, indices in files.items():
+                params = self._get_param_file_data(submission_idx, file_ID)
                 for param_id, (idx, key) in indices.items():
                     if idx >= len(params):
                         data[param_id] = None
@@ -2229,14 +2248,14 @@ class ZarrPersistentStore(
             file_IDs = list(files)
             paths = get_run_multi_chunk_path(idx=file_IDs, prefix=prefix)
 
-            for path, data_i in zip(paths, files.values()):
+            for path, (file_ID, data_i) in zip(paths, files.items()):
+
                 path.parent.mkdir(exist_ok=True, parents=True)
 
-                if path.exists():
-                    with open(path, "rb") as f:
-                        params = decode_msgpack(f.read())
-                else:
-                    params = []
+                cached_params = self._get_param_file_data(submission_idx, file_ID)
+
+                # don't modify the cache yet:
+                params = [dict(param_i) for param_i in cached_params]
 
                 max_idx = max((idx for idx, _ in data_i))
 
@@ -2249,6 +2268,11 @@ class ZarrPersistentStore(
 
                 atomic_write(path, encode_msgpack(params))
 
+                if self.use_cache:
+                    # update the cache
+                    self._param_file_cache[(submission_idx, file_ID)] = params
+
+    @TimeIt.decorator
     def _get_run_file_lookup(
         self,
         id_lst: Iterable[int],
@@ -2773,6 +2797,10 @@ class ZarrPersistentStore(
 
     def unzip(self, path: str = ".", log: str | None = None):
         raise ValueError("Not a zip store!")
+
+    def _consolidate_msgpack_files(self):
+        """Consolidate msgpack files (execution-time run metadata files or base parameter
+        files)"""
 
     def _rechunk_arr(
         self,
