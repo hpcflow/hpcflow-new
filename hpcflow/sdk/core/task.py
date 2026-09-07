@@ -6,6 +6,7 @@ from __future__ import annotations
 from collections import defaultdict
 import copy
 from dataclasses import dataclass, field
+import functools
 from itertools import chain
 from pathlib import Path
 import re
@@ -3045,6 +3046,7 @@ class WorkflowTask(AppAware):
             default=default,
         )
 
+    @TimeIt.decorator
     def _paths_to_PV_classes(self, *paths: str | None) -> dict[str, type[ParameterValue]]:
         """Return a dict mapping dot-delimited string input paths to `ParameterValue`
         classes."""
@@ -3101,31 +3103,53 @@ class WorkflowTask(AppAware):
         return params
 
     @staticmethod
-    def _get_relevant_paths(
-        data_index: Mapping[str, Any], path: list[str], children_of: str | None = None
+    @functools.lru_cache(maxsize=1024)
+    def _get_relevant_paths_cached(
+        data_paths: tuple[str, ...],
+        path: tuple[str, ...],
+        children_of: str | None,
     ) -> Mapping[str, RelevantPath]:
         relevant_paths: dict[str, RelevantPath] = {}
-        # first extract out relevant paths in `data_index`:
-        for path_i in data_index:
+
+        path_list = list(path)
+
+        for path_i in data_paths:
             path_i_split = path_i.split(".")
             try:
-                rel_path = get_relative_path(path, path_i_split)
-                relevant_paths[path_i] = {"type": "parent", "relative_path": rel_path}
+                rel_path = get_relative_path(path_list, path_i_split)
+                relevant_paths[path_i] = {
+                    "type": "parent",
+                    "relative_path": rel_path,
+                }
             except ValueError:
                 try:
-                    update_path = get_relative_path(path_i_split, path)
+                    update_path = get_relative_path(path_i_split, path_list)
                     relevant_paths[path_i] = {
                         "type": "update",
                         "update_path": update_path,
                     }
                 except ValueError:
-                    # no intersection between paths
                     if children_of and path_i.startswith(children_of):
                         relevant_paths[path_i] = {"type": "sibling"}
-                    continue
 
         return relevant_paths
 
+    @staticmethod
+    @TimeIt.decorator
+    def _get_relevant_paths(
+        data_index: Mapping[str, Any],
+        path: list[str],
+        children_of: str | None = None,
+    ) -> Mapping[str, RelevantPath]:
+        return dict(
+            WorkflowTask._get_relevant_paths_cached(
+                tuple(data_index),
+                tuple(path),
+                children_of,
+            )
+        )
+
+    @TimeIt.decorator
     def __get_relevant_data_item(
         self,
         path: str | None,
@@ -3175,6 +3199,7 @@ class WorkflowTask(AppAware):
             unset_trackers[path_i].group_size = len_dat_idx
         return data_j, is_set_i, meth_i
 
+    @TimeIt.decorator
     def __get_relevant_data(
         self,
         relevant_data_idx: Mapping[str, list[int] | int],
@@ -3226,6 +3251,7 @@ class WorkflowTask(AppAware):
         return relevant_data
 
     @classmethod
+    @TimeIt.decorator
     def __merge_relevant_data(
         cls,
         relevant_data: Mapping[str, RelevantData],
