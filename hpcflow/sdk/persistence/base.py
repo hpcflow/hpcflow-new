@@ -103,6 +103,7 @@ TEMPLATE_COMP_TYPES = (
 PARAM_DATA_NOT_SET: Final[int] = 0
 
 
+@TimeIt.decorator
 def update_param_source_dict(source: ParamSource, update: ParamSource) -> ParamSource:
     """
     Combine two dicts into a new dict that is ordered on its keys.
@@ -875,6 +876,7 @@ class StoreParameter:
         return {"data": data, "type_lookup": type_lookup}
 
     @classmethod
+    @TimeIt.decorator
     def decode(
         cls,
         id_: int,
@@ -1092,6 +1094,7 @@ class PersistentStore(
                 **self.workflow._app.encoders().get(self._name, {}),
             }
 
+    @TimeIt.decorator
     def _ensure_all_decoders(self):
         """Ensure app-defined decoders are included in the StoreParameter's decoders
         map."""
@@ -1289,6 +1292,15 @@ class PersistentStore(
         self._cache["num_EARs"] = value
 
     @property
+    def num_iters_cache(self) -> int | None:
+        """Cache for total number of persistent element iterations."""
+        return self._cache["num_iters"]
+
+    @num_iters_cache.setter
+    def num_iters_cache(self, value: int | None):
+        self._cache["num_iters"] = value
+
+    @property
     def num_params_cache(self) -> int | None:
         return self._cache["num_params"]
 
@@ -1317,6 +1329,7 @@ class PersistentStore(
             "param_sources": {},
             "num_tasks": None,
             "parameters": {},
+            "num_iters": None,
             "num_EARs": None,
             "num_params": None,
         }
@@ -1506,6 +1519,7 @@ class PersistentStore(
         """Get the total number of persistent and pending EARs."""
         return self._get_num_persistent_EARs() + len(self._pending.add_EARs)
 
+    @TimeIt.decorator
     def _get_task_total_num_elements(self, task_ID: int) -> int:
         """Get the total number of persistent and pending elements of a given task."""
         return len(self.get_task(task_ID).element_IDs)
@@ -1623,33 +1637,42 @@ class PersistentStore(
         if save:
             self.save()
 
-    def add_element(
+    @TimeIt.decorator
+    def add_elements(
         self,
         task_ID: int,
         es_idx: int,
-        seq_idx: dict[str, int],
-        src_idx: dict[str, int],
+        seq_idx: list[dict[str, int]],
+        src_idx: list[dict[str, int]],
         save: bool = True,
-    ) -> int:
-        """Add a new element to a task."""
+    ):
+        """Add multiple new elements to a task."""
         self.logger.debug("Adding store element.")
-        new_ID = self._get_num_total_elements()
-        new_elem_idx = self._get_task_total_num_elements(task_ID)
-        self._pending.add_elements[new_ID] = self._store_elem_cls()(
-            id_=new_ID,
-            is_pending=True,
-            index=new_elem_idx,
-            es_idx=es_idx,
-            seq_idx=seq_idx,
-            src_idx=src_idx,
-            task_ID=task_ID,
-            iteration_IDs=[],
-        )
-        self._pending.add_elem_IDs[task_ID].append(new_ID)
+        next_ID = self._get_num_total_elements()
+        next_idx = self._get_task_total_num_elements(task_ID)
+        num_new = len(seq_idx)
+        new_IDs = list(range(next_ID, next_ID + num_new))
+        new_indices = list(range(next_idx, next_idx + num_new))
+
+        for id_i, idx_i, seq_idx_i, src_idx_i in zip(
+            new_IDs, new_indices, seq_idx, src_idx
+        ):
+            self._pending.add_elements[id_i] = self._store_elem_cls()(
+                id_=id_i,
+                is_pending=True,
+                index=idx_i,
+                es_idx=es_idx,
+                seq_idx=seq_idx_i,
+                src_idx=src_idx_i,
+                task_ID=task_ID,
+                iteration_IDs=[],
+            )
+        self._pending.add_elem_IDs[task_ID].extend(new_IDs)
         if save:
             self.save()
-        return new_ID
+        return new_IDs
 
+    @TimeIt.decorator
     def add_element_iteration(
         self,
         element_ID: int,
@@ -1679,6 +1702,50 @@ class PersistentStore(
         if save:
             self.save()
         return new_ID
+
+    @TimeIt.decorator
+    def add_element_iterations(
+        self,
+        element_IDs: list[int],
+        data_idx_all: list[DataIndex],
+        schema_parameters_all: list[list[str]],
+        task_ID: int,
+        index: int,
+        loop_idx_all: list[Mapping[str, int]] | None = None,
+        save: bool = True,
+    ) -> int:
+        """Add a new iteration to multiple elements."""
+        self.logger.debug("Adding store element-iteration.")
+
+        next_ID = self._get_num_total_elem_iters()
+        num_new = len(element_IDs)
+        new_IDs = list(range(next_ID, next_ID + num_new))
+        if loop_idx_all is None:
+            loop_idx_all = [None] * num_new
+
+        for id_i, elem_ID, data_idx, schema_params, loop_idx in zip(
+            new_IDs,
+            element_IDs,
+            data_idx_all,
+            schema_parameters_all,
+            loop_idx_all,
+        ):
+            self._pending.add_elem_iters[id_i] = self._store_iter_cls()(
+                id_=id_i,
+                element_ID=elem_ID,
+                is_pending=True,
+                EARs_initialised=False,
+                EAR_IDs=None,
+                data_idx=data_idx,
+                schema_parameters=schema_params,
+                loop_idx=loop_idx or {},
+                task_ID=task_ID,
+                index=index,
+            )
+            self._pending.add_elem_iter_IDs[elem_ID].append(id_i)
+        if save:
+            self.save()
+        return new_IDs
 
     @TimeIt.decorator
     def add_EAR(
@@ -2216,6 +2283,7 @@ class PersistentStore(
         return loops_new
 
     @staticmethod
+    @TimeIt.decorator
     def __split_pending(
         ids: Iterable[int], all_pending: Mapping[int, Any]
     ) -> tuple[tuple[int, ...], set[int], set[int]]:

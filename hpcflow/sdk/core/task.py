@@ -1050,6 +1050,7 @@ class Task(JSONLike):
         }
         return res
 
+    @TimeIt.decorator
     def set_sequence_parameters(self, element_set: ElementSet) -> None:
         """
         Set up parameters parsed by value sequences.
@@ -1134,6 +1135,7 @@ class Task(JSONLike):
 
         return output_data_indices
 
+    @TimeIt.decorator
     def prepare_element_resolution(
         self, element_set: ElementSet, input_data_indices: Mapping[str, Sequence]
     ) -> list[MultiplicityDescriptor]:
@@ -2621,8 +2623,8 @@ class WorkflowTask(AppAware):
         """
         Returns
         -------
-        element_indices : list of int
-            Global indices of newly added elements.
+        element_iteration_indices : list of int
+            Global indices of newly added element iterations
 
         """
 
@@ -2665,25 +2667,31 @@ class WorkflowTask(AppAware):
             src_idx,
         )
 
-        iter_IDs: list[int] = []
-        elem_IDs: list[int] = []
+        seq_idx_all: list[dict[str, list[int]]] = []
+        src_idx_all: list[dict[str, list[int]]] = []
+        schema_params_all: list[list[str]] = []
         for elem_idx, data_idx in enumerate(element_data_idx):
-            schema_params = set(i for i in data_idx if len(i.split(".")) == 2)
-            elem_ID_i = self.workflow._store.add_element(
-                task_ID=self.insert_ID,
-                es_idx=self.num_element_sets - 1,
-                seq_idx={k: v[elem_idx] for k, v in element_seq_idx.items()},
-                src_idx={k: v[elem_idx] for k, v in element_src_idx.items() if v != -1},
+            schema_params_all.append(
+                list(set(i for i in data_idx if len(i.split(".")) == 2))
             )
-            iter_ID_i = self.workflow._store.add_element_iteration(
-                element_ID=elem_ID_i,
-                data_idx=data_idx,
-                schema_parameters=list(schema_params),
-                task_ID=self.insert_ID,
-                index=0,
+            seq_idx_all.append({k: v[elem_idx] for k, v in element_seq_idx.items()})
+            src_idx_all.append(
+                {k: v[elem_idx] for k, v in element_src_idx.items() if v != -1}
             )
-            iter_IDs.append(iter_ID_i)
-            elem_IDs.append(elem_ID_i)
+
+        elem_IDs = self.workflow._store.add_elements(
+            task_ID=self.insert_ID,
+            es_idx=self.num_element_sets - 1,
+            seq_idx=seq_idx_all,
+            src_idx=src_idx_all,
+        )
+        iter_IDs = self.workflow._store.add_element_iterations(
+            element_IDs=elem_IDs,
+            data_idx_all=element_data_idx,
+            schema_parameters_all=schema_params_all,
+            task_ID=self.insert_ID,
+            index=0,
+        )
 
         self._pending_element_IDs += elem_IDs
         self.initialise_EARs()
