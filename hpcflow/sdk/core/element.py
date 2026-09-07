@@ -460,7 +460,7 @@ class ElementResources(JSONLike):
             # are combining scripts, then the environments must be the same:
             exclude.append("environments")
 
-        dct = {k: copy.deepcopy(v) for k, v in self.__dict__.items() if k not in exclude}
+        dct = {k: v for k, v in self.__dict__.items() if k not in exclude}
 
         # `combine_scripts==False` and `combine_scripts==None` should have an equivalent
         # contribution to the hash, so always set it to `False` if unset at this point:
@@ -893,8 +893,9 @@ class ElementIteration(AppAware):
         if path:
             data_idx = {k: v for k, v in data_idx.items() if k.startswith(path)}
 
-        return copy.deepcopy(data_idx)
+        return dict(data_idx)  # shallow copy should be sufficient
 
+    @TimeIt.decorator
     def __get_parameter_sources(
         self, data_idx: DataIndex, filter_type: str | None, use_task_index: bool
     ) -> Mapping[str, ParamSource | list[ParamSource]]:
