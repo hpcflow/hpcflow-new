@@ -121,7 +121,7 @@ class PendingChanges(
         self.update_at_submit_metadata: dict[int, dict[str, Any]] = {}
 
         #: IDs of EARs to mark as initialised.
-        self.set_EARs_initialised: list[int] = []
+        self.set_EARs_initialised: set[int] = set()
         #: Submission IDs and commands file IDs to attach to EARs.
         self.set_EAR_submission_data: dict[int, tuple[int, int | None, int, int]] = {}
         #: IDs of EARs to mark as skipped.
@@ -441,9 +441,8 @@ class PendingChanges(
                         self.add_elem_iter_EAR_IDs[iter_id][act_idx].extend(run_IDs)
 
             # pending EARs_initialised that belong to pending iters are now committed:
-            self.set_EARs_initialised = [
-                i for i in self.set_EARs_initialised if i not in iter_ids
-            ]
+            self.set_EARs_initialised -= iter_ids
+
         self._clear_add_elem_iters()
 
     @TimeIt.decorator
@@ -735,7 +734,7 @@ class PendingChanges(
         self.add_elem_iter_EAR_IDs = defaultdict(lambda: defaultdict(list))
 
     def _clear_set_EARs_initialised(self) -> None:
-        self.set_EARs_initialised = []
+        self.set_EARs_initialised = set()
 
     def _clear_EAR_submission_data(self) -> None:
         self.set_EAR_submission_data = {}

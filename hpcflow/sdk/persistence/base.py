@@ -1913,7 +1913,7 @@ class PersistentStore(
         """
         Mark an element action run as initialised.
         """
-        self._pending.set_EARs_initialised.append(iter_ID)
+        self._pending.set_EARs_initialised.add(iter_ID)
         if save:
             self.save()
 
