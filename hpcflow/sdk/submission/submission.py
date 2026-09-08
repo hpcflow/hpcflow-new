@@ -181,8 +181,6 @@ class Submission(JSONLike):
             defaultdict(lambda: defaultdict(set))
         )
         with self.workflow.cached_merged_parameters():
-            # using the cache (for `run.env_spec_hashable` -> `run.resources`) should
-            # significantly speed up this loop, unless a large resources sequence is used:
             for js_idx, all_EARs_i in enumerate(self.all_EARs_by_jobscript):
                 for run in all_EARs_i:
                     env_spec_h = run.env_spec_hashable
@@ -798,13 +796,19 @@ class Submission(JSONLike):
                         run_cmd_file_names[run.id_] = None
 
                     else:
+                        env_spec_h = None
                         if run.is_snippet_script:
+                            env_spec_h = run.env_spec_hashable
                             actions_by_schema[run.action.task_schema.name][
                                 run.element_action.action_idx
-                            ].add(run.env_spec_hashable)
+                            ].add(env_spec_h)
 
                         if run.action.commands:
-                            hash_i = run.get_commands_file_hash()
+                            if env_spec_h is None:
+                                env_spec_h = run.env_spec_hashable
+                            hash_i = run.get_commands_file_hash(
+                                env_spec_hashable=env_spec_h
+                            )
                             # TODO: could further reduce number of files in the case the data
                             # indices hash is the same: if commands objects are the same and
                             # environment objects are the same, then the files will be the
