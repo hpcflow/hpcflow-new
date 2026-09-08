@@ -3047,6 +3047,7 @@ class Workflow(AppAware):
             for te in self._store.get_task_elements(task.insert_ID, idx_lst)
         ]
 
+    @TimeIt.decorator
     def set_EAR_start(
         self, run_id: int, run_dir: Path | None, port_number: int | None
     ) -> None:
@@ -3055,6 +3056,7 @@ class Workflow(AppAware):
         with self._store.cached_load(), self.batch_update():
             self._store.set_EAR_start(run_id, run_dir, port_number)
 
+    @TimeIt.decorator
     def set_multi_run_starts(
         self, run_ids: list[int], run_dirs: list[Path | None], port_number: int
     ) -> None:
@@ -3063,6 +3065,7 @@ class Workflow(AppAware):
         with self._store.cached_load(), self.batch_update():
             self._store.set_multi_run_starts(run_ids, run_dirs, port_number)
 
+    @TimeIt.decorator
     def __apply_task_conditions(self, run):
         """When a run has ended, check if any non-group task conditions are defined that
         depend on the run's parameters, and if so, skip any runs of those tasks if the
@@ -3097,6 +3100,7 @@ class Workflow(AppAware):
 
         return new_skips
 
+    @TimeIt.decorator
     def __apply_group_task_conditions(self, run) -> bool:
         """Before a run starts, check if any group task conditions are defined in the
         run's task, and if so, skip the run if the condition is not met.
@@ -3129,6 +3133,7 @@ class Workflow(AppAware):
                     return False
         return True
 
+    @TimeIt.decorator
     def set_EAR_end(
         self,
         block_act_key: BlockActionKey,
@@ -4535,6 +4540,7 @@ class Workflow(AppAware):
 
         return submission_jobscripts, all_element_deps
 
+    @TimeIt.decorator
     @load_workflow_config
     def execute_run(
         self,
@@ -4764,6 +4770,7 @@ class Workflow(AppAware):
                 exit_code=ret_code,
             )
 
+    @TimeIt.decorator
     def _check_loop_termination(self, run: ElementActionRun) -> set[int]:
         """Check if we need to terminate a loop if this is the last action of the loop
         iteration for this element, and set downstream iteration runs to skip."""
