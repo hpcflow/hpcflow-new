@@ -664,12 +664,16 @@ class ZarrPersistentStore(
                 self._parameter_data_array_group = None
 
     @TimeIt.decorator
+    def _read_array_data_parameter_sources(self) -> NDArray:
+        return self._get_parameter_sources_array()[:]
+
+    @TimeIt.decorator
     def get_parameter_sources_array(self) -> NDArray:
         if self._use_parameters_metadata_cache:
             if self._parameter_sources_array is None:
-                self._parameter_sources_array = self._get_parameter_sources_array()[:]
+                self._parameter_sources_array = self._read_array_data_parameter_sources()
             return self._parameter_sources_array
-        return self._get_parameter_sources_array()[:]
+        return self._read_array_data_parameter_sources()
 
     @TimeIt.decorator
     def get_parameter_data_array_group(self, parameter_idx: int) -> dict[int, Group]:
@@ -789,7 +793,7 @@ class ZarrPersistentStore(
             shape=0,
             dtype=object,
             object_codec=cls._CODEC,
-            chunks=1000,
+            chunks=100_000,
             compressor=cmp,
         )
         elems_arr.attrs.update({"seq_idx": [], "src_idx": []})
@@ -799,7 +803,7 @@ class ZarrPersistentStore(
             shape=0,
             dtype=object,
             object_codec=cls._CODEC,
-            chunks=1000,
+            chunks=100_000,
             compressor=cmp,
         )
         elem_iters_arr.attrs.update(
@@ -813,7 +817,7 @@ class ZarrPersistentStore(
         run_md_arr = md.create_dataset(
             name=cls._run_metadata_arr_name,
             shape=0,
-            chunks=200_000,  # TODO: check; probably want a few MB per chunk
+            chunks=200_000,
             dtype=object,
             object_codec=cls._CODEC,
             compressor=cmp,
@@ -824,7 +828,7 @@ class ZarrPersistentStore(
         run_dir_arr = md.create_dataset(
             name=cls._run_dir_arr_name,
             shape=0,
-            chunks=10_000,
+            chunks=100_000,
             dtype=RUN_DIR_ARR_DTYPE,
             fill_value=RUN_DIR_ARR_FILL,
             write_empty_chunks=False,
@@ -836,7 +840,7 @@ class ZarrPersistentStore(
             shape=0,
             dtype=object,
             object_codec=cls._CODEC,
-            chunks=1000,  # TODO: check this is a sensible size with many parameters
+            chunks=100_000,  # TODO: check this is a sensible size with many parameters
             compressor=cmp,
         )
         # track the number of non EAR-output parameter (sources), so we can associate
@@ -854,7 +858,7 @@ class ZarrPersistentStore(
             name=cls._run_sub_metadata_arr_name,
             shape=0,
             dtype=cls._RUN_SUB_DAT_DTYPE,
-            chunks=100_000,
+            chunks=200_000,
             compressor=cmp,
             fill_value=tuple(
                 cls._RUN_SUB_DAT_FILL[key]
