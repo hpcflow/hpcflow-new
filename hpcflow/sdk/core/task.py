@@ -8,6 +8,7 @@ import copy
 from dataclasses import dataclass, field
 import functools
 from itertools import chain
+import logging
 from pathlib import Path
 import re
 from typing import NamedTuple, cast, overload, TYPE_CHECKING
@@ -2512,7 +2513,6 @@ class WorkflowTask(AppAware):
         return element_dat_idx
 
     @TimeIt.decorator
-    @TimeIt.decorator
     def initialise_EARs(self, iter_IDs: list[int] | None = None) -> Sequence[int]:
         """Try to initialise any uninitialised EARs of this task."""
         if iter_IDs:
@@ -2528,11 +2528,15 @@ class WorkflowTask(AppAware):
                 # objects.
                 iters.extend(element.iterations)
 
+        # keys are action indices, values are dicts whose keys are outputs/input-/output-
+        # file types and values are output indices:
+        _, output_indices = self.template.schema.get_output_indices()
+
         initialised: list[int] = []
         for iter_i in iters:
             if not iter_i.EARs_initialised:
                 try:
-                    self.__initialise_element_iter_EARs(iter_i)
+                    self.__initialise_element_iter_EARs(iter_i, output_indices)
                     initialised.append(iter_i.id_)
                 except UnsetParameterDataError:
                     # raised by `Action.test_rules`; cannot yet initialise EARs
@@ -2546,7 +2550,9 @@ class WorkflowTask(AppAware):
         return initialised
 
     @TimeIt.decorator
-    def __initialise_element_iter_EARs(self, element_iter: ElementIteration) -> None:
+    def __initialise_element_iter_EARs(
+        self, element_iter: ElementIteration, output_indices: dict[int, dict[str, int]]
+    ) -> None:
         # keys are (act_idx, EAR_idx):
         all_data_idx: dict[tuple[int, int], DataIndex] = {}
         action_runs: dict[tuple[int, int], dict[str, Any]] = {}
@@ -2554,24 +2560,27 @@ class WorkflowTask(AppAware):
         # keys are parameter indices, values are EAR_IDs to update those sources to
         param_src_updates: dict[int, ParamSource] = {}
 
-        # keys are action indices, values are dicts whose keys are outputs/input-/output-
-        # file types and values are output indices:
-        _, output_indices = self.template.schema.get_output_indices()
-
-        count = 0
+        logger = self._app.logger
+        log_info = logger.isEnabledFor(logging.INFO)
+        next_EAR_ID = self.workflow.num_EARs
         for act_idx, action in self.template.all_schema_actions():
-            log_common = (
-                f"for action {act_idx} of element iteration {element_iter.index} of "
-                f"element {element_iter.element.index} of task {self.unique_name!r}."
-            )
             # TODO: when we support adding new runs, we will probably pass additional
             # run-specific data index to `test_rules` and `generate_data_index`
             # (e.g. if we wanted to increase the memory requirements of a action because
             # it previously failed)
             act_valid, cmds_idx = action.test_rules(element_iter=element_iter)
             if act_valid:
-                self._app.logger.info(f"All action rules evaluated to true {log_common}")
-                EAR_ID = self.workflow.num_EARs + count
+                if log_info:
+                    logger.info(
+                        "All action rules evaluated to true for action %s of "
+                        "element iteration %s of element %s of task %r.",
+                        act_idx,
+                        element_iter.index,
+                        element_iter.element.index,
+                        self.unique_name,
+                    )
+                EAR_ID = next_EAR_ID
+                next_EAR_ID += 1
                 param_source: ParamSource = {
                     "type": "EAR_output",
                     "EAR_ID": EAR_ID,
@@ -2598,10 +2607,15 @@ class WorkflowTask(AppAware):
                     "metadata": {},
                 }
                 action_runs[act_idx, EAR_ID] = run_0
-                count += 1
-            else:
-                self._app.logger.info(
-                    f"Some action rules evaluated to false {log_common}"
+
+            elif log_info:
+                logger.info(
+                    "Some action rules evaluated to false for action %s of "
+                    "element iteration %s of element %s of task %r.",
+                    act_idx,
+                    element_iter.index,
+                    element_iter.element.index,
+                    self.unique_name,
                 )
 
         # `generate_data_index` can modify data index for previous actions, so only assign
