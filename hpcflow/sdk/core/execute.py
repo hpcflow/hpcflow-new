@@ -9,6 +9,7 @@ import zmq
 
 from hpcflow.sdk.core import ABORT_EXIT_CODE
 from hpcflow.sdk.core.app_aware import AppAware
+from hpcflow.sdk.log import TimeIt
 
 
 class Executor(AppAware):
@@ -122,6 +123,7 @@ class Executor(AppAware):
         if self.server_thread.is_alive():
             raise RuntimeError("Server thread is still alive!")
 
+    @TimeIt.decorator
     def run(self):
         """Launch the subprocess to execute the commands, and once complete, stop the
         ZMQ server. Kill the subprocess if a "shutdown" or "abort" message is sent to the

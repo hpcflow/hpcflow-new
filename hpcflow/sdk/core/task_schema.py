@@ -18,6 +18,7 @@ from rich.panel import Panel
 from rich.markup import escape as rich_esc
 from rich.text import Text
 
+from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.typing import hydrate
 from hpcflow.sdk.core.enums import ParameterPropagationMode
 from hpcflow.sdk.core.errors import (
@@ -733,6 +734,7 @@ class TaskSchema(JSONLike):
         self.inputs.append(self._app.SchemaInput(parameter=param, group=group_name))
         self._validate()
 
+    @TimeIt.decorator
     def get_action_parameter_flow(self) -> dict[str, dict[str, list[int]]]:
         """
         For each parameter that appears within the actions of this task schema, get the
@@ -832,6 +834,7 @@ class TaskSchema(JSONLike):
         if self._validate_actions:
             self._validate_action_flow()
 
+    @TimeIt.decorator
     def get_output_indices(self) -> tuple[dict[str, int], dict[int, dict[str, int]]]:
         """
         Get stable indices of schema outputs within their parent action; and those of
