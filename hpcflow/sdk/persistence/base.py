@@ -14,6 +14,7 @@ from datetime import datetime
 import enum
 from logging import Logger
 from functools import wraps
+import logging
 import os
 from pathlib import Path
 import shutil
@@ -1747,7 +1748,6 @@ class PersistentStore(
             self.save()
         return new_IDs
 
-    @TimeIt.decorator
     def add_EAR(
         self,
         elem_iter_ID: int,
@@ -2159,7 +2159,6 @@ class PersistentStore(
         if save:
             self.save()
 
-    @TimeIt.decorator
     @writes_parameter_data
     def update_param_source(
         self, param_sources: Mapping[int, ParamSource], save: bool = True
@@ -2537,26 +2536,30 @@ class PersistentStore(
         """
         # separate pending and persistent IDs:
         ids, id_pers, id_pend = self.__split_pending(ids, self._pending.add_elem_iters)
-        self.logger.debug(
-            f"PersistentStore.get_element_iterations: {len(ids)} iterations: "
-            f"{shorten_list_str(ids)}."
-        )
+        if self.logger.isEnabledFor(logging.DEBUG):
+            self.logger.debug(
+                f"PersistentStore.get_element_iterations: {len(ids)} iterations: "
+                f"{shorten_list_str(ids)}."
+            )
         iters = self._get_persistent_element_iters(id_pers) if id_pers else {}
         iters.update((id_, self._pending.add_elem_iters[id_]) for id_ in id_pend)
+
+        pend_EARs = self._pending.add_elem_iter_EAR_IDs
+        pend_loop = self._pending.update_loop_indices
+        pend_init = self._pending.set_EARs_initialised
 
         iters_new: list[AnySElementIter] = []
         # order as requested:
         for iter_i in (iters[id_] for id_ in ids):
-            # consider pending EAR IDs:
-            if pend_EARs := self._pending.add_elem_iter_EAR_IDs.get(iter_i.id_):
-                iter_i = iter_i.append_EAR_IDs(pend_EARs)
+            iter_id = iter_i.id_
 
-            # consider pending loop idx
-            if pend_loop_idx := self._pending.update_loop_indices.get(iter_i.id_):
-                iter_i = iter_i.update_loop_idx(pend_loop_idx)
+            if iter_id in pend_EARs:
+                iter_i = iter_i.append_EAR_IDs(pend_EARs[iter_id])
 
-            # consider pending `EARs_initialised`:
-            if iter_i.id_ in self._pending.set_EARs_initialised:
+            if iter_id in pend_loop:
+                iter_i = iter_i.update_loop_idx(pend_loop[iter_id])
+
+            if iter_id in pend_init:
                 iter_i = iter_i.set_EARs_initialised()
 
             iters_new.append(iter_i)
