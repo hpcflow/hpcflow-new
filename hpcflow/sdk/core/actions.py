@@ -773,9 +773,7 @@ class ElementActionRun(AppAware):
         Get the specification that defines the environment in which this run will execute.
         This will include at least a `name` key.
         """
-        if (envs := self.resources.environments) is None:
-            return {}
-        return envs[self.action.get_environment_name()]
+        return self.element_iteration.get_environment_spec(self.action)
 
     @property
     @TimeIt.decorator
@@ -830,6 +828,7 @@ class ElementActionRun(AppAware):
         """
         return self.env_spec
 
+    @TimeIt.decorator
     def get_environment(self) -> Environment:
         """
         Get the environment in which this run will execute.
@@ -1213,6 +1212,7 @@ class ElementActionRun(AppAware):
         except AttributeError:
             return False
 
+    @TimeIt.decorator
     def get_script_artifact_name(self) -> str:
         """Return the script name that is used when writing the script to the artifacts
         directory within the workflow.
@@ -1268,7 +1268,7 @@ class ElementActionRun(AppAware):
         return ("\n".join(command_lns) + "\n"), shell_vars
 
     @TimeIt.decorator
-    def get_commands_file_hash(self) -> int:
+    def get_commands_file_hash(self, env_spec_hashable: tuple | None = None) -> int:
         """Get a hash that can be used to group together runs that will have the same
         commands file.
 
@@ -1278,7 +1278,7 @@ class ElementActionRun(AppAware):
         return self.action.get_commands_file_hash(
             data_idx=self.get_data_idx(),
             action_idx=self.element_action.action_idx,
-            env_spec_hashable=self.env_spec_hashable,
+            env_spec_hashable=env_spec_hashable or self.env_spec_hashable,
         )
 
     @overload
@@ -3246,7 +3246,6 @@ class Action(JSONLike):
         """
         return tuple(out_f.label for out_f in self.output_files)
 
-    @TimeIt.decorator
     def generate_data_index(
         self,
         act_idx: int,
@@ -3452,7 +3451,6 @@ class Action(JSONLike):
             for inp_typ in (ofp.inputs or ())
         )
 
-    @TimeIt.decorator
     def test_rules(self, element_iter: ElementIteration) -> tuple[bool, list[int]]:
         """Test all rules against the specified element iteration."""
         if any(not rule.test(element_iteration=element_iter) for rule in self.rules):

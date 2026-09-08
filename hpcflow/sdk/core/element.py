@@ -1383,6 +1383,30 @@ class ElementIteration(AppAware):
 
         return resources
 
+    def get_environment_spec(self, action: Action) -> Mapping[str, Any]:
+        """A faster path to environment specs instead of via ElementResources."""
+        resource_specs = self.get("resources")
+
+        action_env_spec = action.get_environment_spec()
+        env_name = action_env_spec["name"]
+
+        env_spec = dict(action_env_spec)
+
+        for scope in action._get_possible_scopes_reversed():
+            scope_res = resource_specs.get(scope.to_string())
+
+            if not scope_res:
+                continue
+
+            scope_envs = scope_res.get("environments")
+            if not scope_envs:
+                continue
+
+            if user_env_spec := scope_envs.get(env_name):
+                env_spec.update(user_env_spec)
+
+        return env_spec
+
     def get_resources_obj(
         self, action: Action, set_defaults: bool = False
     ) -> ElementResources:
