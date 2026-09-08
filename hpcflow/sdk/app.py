@@ -269,6 +269,7 @@ if TYPE_CHECKING:
             cancel: bool = False,
             status: bool = True,
             quiet: bool = False,
+            timeit: bool = False,
         ) -> tuple[_Workflow, Mapping[int, Sequence[int]]] | _Workflow: ...
 
     class _MakeAndSubmitDemoWorkflow(Protocol):
@@ -301,6 +302,7 @@ if TYPE_CHECKING:
             cancel: bool = False,
             status: bool = True,
             quiet: bool = False,
+            timeit: bool = False,
         ) -> tuple[_Workflow, Mapping[int, Sequence[int]]] | _Workflow: ...
 
     class _SubmitWorkflow(Protocol):
@@ -316,6 +318,7 @@ if TYPE_CHECKING:
             return_idx: bool = False,
             tasks: list[int] | None = None,
             quiet: bool = False,
+            timeit: bool = False,
         ) -> Mapping[int, Sequence[int]] | None: ...
 
     class _GetKnownSubmissions(Protocol):
@@ -1591,6 +1594,10 @@ class BaseApp(metaclass=Singleton):
             progress.
         quiet: bool
             If True, do not print anything about submission.
+        timeit: bool
+            Time run execution function pathways as the code executes and write out a
+            summary to the app-std file. Only functions decorated by `TimeIt.decorator`
+            are included.
 
         Returns
         -------
@@ -1680,6 +1687,10 @@ class BaseApp(metaclass=Singleton):
             If True, display a live status to track submission progress.
         quiet: bool
             If True, do not print anything about submission.
+        timeit: bool
+            Time run execution function pathways as the code executes and write out a
+            summary to the app-std file. Only functions decorated by `TimeIt.decorator`
+            are included.
 
         Returns
         -------
@@ -1712,6 +1723,10 @@ class BaseApp(metaclass=Singleton):
             included.
         quiet: bool
             If True, do not print anything about submission.
+        timeit: bool
+            Time run execution function pathways as the code executes and write out a
+            summary to the app-std file. Only functions decorated by `TimeIt.decorator`
+            are included.
 
         Returns
         -------
@@ -3180,6 +3195,7 @@ class BaseApp(metaclass=Singleton):
         cancel: bool = False,
         status: bool = True,
         quiet: bool = False,
+        timeit: bool = False,
     ) -> tuple[_Workflow, Mapping[int, Sequence[int]]] | _Workflow:
         """
         Generate and submit a new {app_name} workflow from a file or string containing a
@@ -3265,6 +3281,10 @@ class BaseApp(metaclass=Singleton):
             progress.
         quiet: bool
             If True, do not print anything about submission.
+        timeit: bool
+            Time run execution function pathways as the code executes and write out a
+            summary to the app-std file. Only functions decorated by `TimeIt.decorator`
+            are included.
 
         Returns
         -------
@@ -3305,6 +3325,7 @@ class BaseApp(metaclass=Singleton):
             cancel=cancel,
             status=status,
             quiet=quiet,
+            timeit=timeit,
         )
         if return_idx:
             return (wk, submitted_js)
@@ -3477,6 +3498,7 @@ class BaseApp(metaclass=Singleton):
         cancel: bool = False,
         status: bool = True,
         quiet: bool = False,
+        timeit: bool = False,
     ) -> tuple[_Workflow, Mapping[int, Sequence[int]]] | _Workflow:
         """
         Generate and submit a new {app_name} workflow from a file or string containing a
@@ -3558,6 +3580,10 @@ class BaseApp(metaclass=Singleton):
             If True, display a live status to track submission progress.
         quiet: bool
             If True, do not print anything about submission.
+        timeit: bool
+            Time run execution function pathways as the code executes and write out a
+            summary to the app-std file. Only functions decorated by `TimeIt.decorator`
+            are included.
 
         Returns
         -------
@@ -3597,6 +3623,7 @@ class BaseApp(metaclass=Singleton):
             cancel=cancel,
             status=status,
             quiet=quiet,
+            timeit=timeit,
         )
         if return_idx:
             return (wk, submitted_js)
@@ -3612,6 +3639,7 @@ class BaseApp(metaclass=Singleton):
         return_idx: bool = False,
         tasks: list[int] | None = None,
         quiet: bool = False,
+        timeit: bool = False,
     ) -> Mapping[int, Sequence[int]] | None:
         """
         Submit an existing {app_name} workflow.
@@ -3640,6 +3668,10 @@ class BaseApp(metaclass=Singleton):
             included.
         quiet: bool
             If True, do not print anything about submission.
+        timeit: bool
+            Time run execution function pathways as the code executes and write out a
+            summary to the app-std file. Only functions decorated by `TimeIt.decorator`
+            are included.
 
         Returns
         -------
@@ -3657,6 +3689,7 @@ class BaseApp(metaclass=Singleton):
                 return_idx=True,
                 tasks=tasks,
                 quiet=quiet,
+                timeit=timeit,
             )
         wk.submit(JS_parallelism=JS_parallelism, wait=wait, tasks=tasks)
         return None

@@ -124,6 +124,7 @@ class Submission(JSONLike):
         at_submit_metadata: dict[str, Any] | None = None,
         JS_parallelism: bool | Literal["direct", "scheduled"] | None = None,
         environments: EnvironmentsList | None = None,
+        timeit: bool = False,
     ):
         self._index = index
         self._jobscripts = jobscripts
@@ -132,6 +133,7 @@ class Submission(JSONLike):
         }
         self._JS_parallelism = JS_parallelism
         self._environments = environments  # assigned by _set_environments
+        self._timeit = timeit
 
         self._submission_parts_lst: list[SubmissionPart] | None = (
             None  # assigned on first access
@@ -240,6 +242,15 @@ class Submission(JSONLike):
         The index of this submission.
         """
         return self._index
+
+    @property
+    def timeit(self) -> int:
+        """
+        Whether to time run execution function pathways as the code executes and write
+        out a summary to the app-std file. Only functions decorated by `TimeIt.decorator`
+        are included.
+        """
+        return self._timeit
 
     @property
     def environments(self) -> EnvironmentsList:

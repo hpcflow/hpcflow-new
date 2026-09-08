@@ -69,6 +69,8 @@ from hpcflow.sdk.cli_common import (
     template_updates_opt,
     template_resource_opt,
     template_config_opt,
+    timeit_opt,
+    timeit_exec_opt,
 )
 from hpcflow.sdk.helper.cli import get_helper_CLI
 from hpcflow.sdk.log import TimeIt
@@ -273,6 +275,7 @@ def _make_API_CLI(app: BaseApp):
     @cancel_opt
     @submit_status_opt
     @submit_quiet_opt
+    @timeit_exec_opt
     def make_and_submit_workflow(
         template_file_or_str: str,
         string: bool,
@@ -298,6 +301,7 @@ def _make_API_CLI(app: BaseApp):
         cancel: bool = False,
         status: bool = True,
         quiet: bool = False,
+        timeit: bool = False,
     ):
         """Generate and submit a new {app_name} workflow.
 
@@ -331,6 +335,7 @@ def _make_API_CLI(app: BaseApp):
             cancel=cancel,
             status=status,
             quiet=quiet,
+            timeit=timeit,
         )
         if print_idx:
             assert isinstance(out, tuple)
@@ -552,6 +557,7 @@ def _make_workflow_CLI(app: BaseApp):
     @cancel_opt
     @submit_status_opt
     @submit_quiet_opt
+    @timeit_exec_opt
     @_pass_workflow
     def submit_workflow(
         wf: Workflow,
@@ -563,6 +569,7 @@ def _make_workflow_CLI(app: BaseApp):
         cancel: bool = False,
         status: bool = True,
         quiet: bool = False,
+        timeit: bool = False,
     ):
         """Submit the workflow."""
         out = wf.submit(
@@ -574,6 +581,7 @@ def _make_workflow_CLI(app: BaseApp):
             cancel=cancel,
             status=status,
             quiet=quiet,
+            timeit=timeit,
         )
         if print_idx:
             click.echo(out)
@@ -584,6 +592,7 @@ def _make_workflow_CLI(app: BaseApp):
     @force_arr_opt
     @min_jobscripts_opt
     @submit_status_opt
+    @timeit_exec_opt
     @_pass_workflow
     def add_submission(
         wf: Workflow,
@@ -592,6 +601,7 @@ def _make_workflow_CLI(app: BaseApp):
         force_array=False,
         min_jobscripts=True,
         status=True,
+        timeit=False,
     ):
         """Add a new submission to the workflow, but do not submit."""
         wf.add_submission(
@@ -600,6 +610,7 @@ def _make_workflow_CLI(app: BaseApp):
             force_array=force_array,
             min_jobscripts=min_jobscripts,
             status=status,
+            timeit=timeit,
         )
 
     @workflow.command(name="wait")
@@ -1902,14 +1913,7 @@ def make_cli(app: BaseApp):
         nargs=2,
         multiple=True,
     )
-    @click.option(
-        "--timeit",
-        help=(
-            "Time function pathways as the code executes and write out a summary at the "
-            "end. Only functions decorated by `TimeIt.decorator` are included."
-        ),
-        is_flag=True,
-    )
+    @timeit_opt
     @click.option(
         "--timeit-file",
         help=(
@@ -1940,6 +1944,8 @@ def make_cli(app: BaseApp):
         app.run_time_info.from_CLI = True
         TimeIt.active = timeit or timeit_file
         TimeIt.file_path = timeit_file
+        if TimeIt.active:
+            TimeIt.CLI_start = time.perf_counter()
         if ctx.invoked_subcommand != "manage":
             # load the config
             overrides = {kv[0]: kv[1] for kv in with_config}
@@ -1956,6 +1962,7 @@ def make_cli(app: BaseApp):
     @new_CLI.result_callback()
     def post_execution(*args, **kwargs):
         if TimeIt.active:
+            TimeIt.CLI_end = time.perf_counter()
             TimeIt.summarise_string()
 
     new_CLI.context_class = ErrorPropagatingClickContext

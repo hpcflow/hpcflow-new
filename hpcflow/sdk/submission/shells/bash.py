@@ -109,7 +109,7 @@ class Bash(Shell):
     JS_RUN_LOG_PATH_DISABLE: ClassVar[str] = '" "'
     #: Template for the run execution command.
     JS_RUN_CMD: ClassVar[str] = (
-        '{workflow_app_alias} internal workflow "$WK_PATH_ARG" execute-run '
+        '{workflow_app_alias} {timeit}internal workflow "$WK_PATH_ARG" execute-run '
         "$SUB_IDX $JS_IDX $block_idx $block_act_idx $EAR_ID\n"
     )
     #: Template for the execution command for multiple combined runs.

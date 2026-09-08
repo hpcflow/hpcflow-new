@@ -12,7 +12,7 @@ from collections import defaultdict
 from collections.abc import Callable, Sequence
 import statistics
 from dataclasses import dataclass
-from typing import ClassVar, ParamSpec, TypeVar, TYPE_CHECKING
+from typing import ClassVar, Literal, ParamSpec, TypeVar, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .app import BaseApp
@@ -56,6 +56,15 @@ class TimeIt:
     trace_prev: ClassVar[list[str]] = []
     #: Preceding trace indices.
     trace_idx_prev: ClassVar[list[int]] = []
+    #: File mode for when summarising to a file
+    file_mode: ClassVar[Literal["w", "a"]] = "w"
+    #: ``time.perf_counter`` assigned at the CLI entry point if active.
+    CLI_start: ClassVar[float | None] = None
+    #: ``time.perf_counter`` assigned at the CLI exit point if active.
+    CLI_end: ClassVar[float | None] = None
+    #: Time spent executing the run command, assigned in ``Workflow.execute_run`` if
+    #: active.
+    run_command_time: ClassVar[float | None] = None
 
     def __init__(self, name: str | None = None):
         self.name = name
@@ -224,8 +233,33 @@ class TimeIt:
         ]
         _format_nodes(summary)
         out_str = "\n".join(out)
+
+        CLI_time = None
+        orchestration_time = None
+
+        if cls.CLI_start is not None and cls.CLI_end is not None:
+            CLI_time = cls.CLI_end - cls.CLI_start
+
+        if CLI_time is not None and cls.run_command_time is not None:
+            orchestration_time = CLI_time - cls.run_command_time
+
+        summary = []
+
+        if CLI_time is not None:
+            summary.append(f"CLI time:           {CLI_time:.6f} s")
+
+        if cls.run_command_time is not None:
+            summary.append(f"Command time:       {cls.run_command_time:.6f} s")
+
+        if orchestration_time is not None:
+            summary.append(f"Orchestration time: {orchestration_time:.6f} s")
+
+        if summary:
+            out_str = "\n".join(summary) + "\n\n" + out_str
+
         if cls.file_path:
-            Path(cls.file_path).write_text(out_str, encoding="utf-8")
+            with Path(cls.file_path).open(cls.file_mode, encoding="utf-8") as fh:
+                fh.write(out_str)
         else:
             print(out_str)
 

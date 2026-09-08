@@ -36,6 +36,7 @@ from hpcflow.sdk.cli_common import (
     template_config_opt,
     force_arr_opt,
     min_jobscripts_opt,
+    timeit_exec_opt,
 )
 from hpcflow.sdk.submission.submission import Submission
 
@@ -207,6 +208,7 @@ def get_demo_workflow_CLI(app: BaseApp):
     @cancel_opt
     @submit_status_opt
     @submit_quiet_opt
+    @timeit_exec_opt
     def make_and_submit_demo_workflow(
         workflow_name: str,
         format: Literal["json", "yaml"] | None,
@@ -231,6 +233,7 @@ def get_demo_workflow_CLI(app: BaseApp):
         cancel: bool = False,
         status: bool = True,
         quiet: bool = False,
+        timeit: bool = False,
     ):
         out = app.make_and_submit_demo_workflow(
             workflow_name=workflow_name,
@@ -256,6 +259,7 @@ def get_demo_workflow_CLI(app: BaseApp):
             cancel=cancel,
             status=status,
             quiet=quiet,
+            timeit=timeit,
         )
         if print_idx:
             assert isinstance(out, tuple)

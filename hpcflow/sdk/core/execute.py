@@ -77,6 +77,7 @@ class Executor(AppAware):
         socket.close()
         self._app.logger.info("zmq_server: server stopped")
 
+    @TimeIt.decorator
     def start_zmq_server(self) -> int:
 
         # start the server thread
@@ -100,6 +101,7 @@ class Executor(AppAware):
 
         return port_number
 
+    @TimeIt.decorator
     def stop_zmq_server(self):
 
         # send a shutdown signal to the server:
