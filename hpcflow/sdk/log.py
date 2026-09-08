@@ -258,7 +258,9 @@ class TimeIt:
             out_str = "\n".join(summary) + "\n\n" + out_str
 
         if cls.file_path:
-            with Path(cls.file_path).open(cls.file_mode, encoding="utf-8") as fh:
+            path = Path(cls.file_path)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open(cls.file_mode, encoding="utf-8") as fh:
                 fh.write(out_str)
         else:
             print(out_str)

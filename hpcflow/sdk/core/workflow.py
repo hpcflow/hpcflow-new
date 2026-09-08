@@ -4583,6 +4583,7 @@ class Workflow(AppAware):
         sub_str_path = Submission.get_app_std_path(self.submissions_path, submission_idx)
         run_std_path = ElementActionRun.get_run_app_std_path(sub_str_path, run_ID)
         has_commands = False
+        command_time = None
 
         if TimeIt.active and not TimeIt.file_path:
             TimeIt.file_path = run_std_path
