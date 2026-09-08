@@ -5,6 +5,7 @@ Elements are components of tasks.
 from __future__ import annotations
 import copy
 from dataclasses import dataclass, field, fields
+from functools import lru_cache
 from operator import attrgetter
 from itertools import chain
 import os
@@ -537,6 +538,7 @@ class ElementResources(JSONLike):
 
     @classmethod
     @TimeIt.decorator
+    @lru_cache(maxsize=None)
     def get_default_scheduler(cls, os_name: str, shell_name: str) -> str:
         """
         Get the default value for scheduler.
