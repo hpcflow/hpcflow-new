@@ -1,4 +1,13 @@
 
+<a name="v0.3.0a1"></a>
+## [v0.3.0a1](https://github.com/hpcflow/hpcflow/compare/v0.3.0a0...v0.3.0a1) - 2026.09.08
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+* **deps:** bump the github-actions-dependencies group across 1 directory with 3 updates
+
+
 <a name="v0.3.0a0"></a>
 ## [v0.3.0a0](https://github.com/hpcflow/hpcflow/compare/v0.2.1a0...v0.3.0a0) - 2026.08.20
 
