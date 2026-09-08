@@ -2288,9 +2288,24 @@ class PersistentStore(
         ids: Iterable[int], all_pending: Mapping[int, Any]
     ) -> tuple[tuple[int, ...], set[int], set[int]]:
         id_all = tuple(ids)
-        id_set = set(id_all)
-        id_pers = id_set.difference(all_pending)
-        id_pend = id_set.intersection(all_pending)
+        if len(id_all) == 1:
+            id_ = id_all[0]
+            if id_ in all_pending:
+                return id_all, (), (id_,)
+            return id_all, (id_,), ()
+
+        id_pers = []
+        id_pend = []
+        seen = set()
+        for id_ in id_all:
+            if id_ in seen:
+                continue
+            seen.add(id_)
+            if id_ in all_pending:
+                id_pend.append(id_)
+            else:
+                id_pers.append(id_)
+
         return id_all, id_pers, id_pend
 
     @abstractmethod
