@@ -126,7 +126,6 @@ class WindowsPowerShell(Shell):
         $env:{app_caps}_RUN_ID = $EAR_ID
         $env:{app_caps}_RUN_LOG_PATH = {run_log_enable_disable}
         $env:{app_caps}_LOG_PATH = $env:{app_caps}_RUN_LOG_PATH
-        $env:{app_caps}_RUN_STD_PATH = Join-Path $SUB_STD_DIR "$env:{app_caps}_RUN_ID.txt"
         $env:{app_caps}_BLOCK_ACT_IDX = $block_act_idx            
 
         Set-Location $SUB_TMP_DIR

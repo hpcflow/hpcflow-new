@@ -128,7 +128,6 @@ class Bash(Shell):
         export {app_caps}_RUN_ID=$EAR_ID
         export {app_caps}_RUN_LOG_PATH={run_log_enable_disable}
         export {app_caps}_LOG_PATH="${app_caps}_RUN_LOG_PATH"
-        export {app_caps}_RUN_STD_PATH="$SUB_STD_DIR/${app_caps}_RUN_ID.txt"
         export {app_caps}_BLOCK_ACT_IDX=$block_act_idx
                 
         cd "$SUB_TMP_DIR"

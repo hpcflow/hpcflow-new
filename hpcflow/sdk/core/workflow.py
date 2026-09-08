@@ -54,6 +54,7 @@ from hpcflow.sdk.core.enums import EARStatus, InputSourceType
 from hpcflow.sdk.core.skip_reason import SkipReason
 from hpcflow.sdk.core.cache import ObjectCache
 from hpcflow.sdk.core.loop_cache import LoopCache, LoopIndex
+from hpcflow.sdk.core.actions import ElementActionRun
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.persistence import store_cls_from_str
 from hpcflow.sdk.persistence.defaults import DEFAULT_STORE_FORMAT
@@ -4555,7 +4556,7 @@ class Workflow(AppAware):
         os.chdir(Submission.get_tmp_path(self.submissions_path, submission_idx))
 
         sub_str_path = Submission.get_app_std_path(self.submissions_path, submission_idx)
-        run_std_path = sub_str_path / f"{str(run_ID)}.txt"  # TODO: refactor
+        run_std_path = ElementActionRun.get_run_app_std_path(sub_str_path, run_ID)
         has_commands = False
 
         # redirect (as much as possible) app-generated stdout/err to a dedicated file:
@@ -4647,6 +4648,7 @@ class Workflow(AppAware):
                         # TODO: make these optionally set (more difficult to set in combine_script,
                         # so have the option to turn off) [default ON]
                         add_env = {
+                            f"{app_caps}_RUN_STD_PATH": str(run_std_path),
                             f"{app_caps}_TASK_IDX": str(run.task.index),
                             f"{app_caps}_TASK_INSERT_ID": str(run.task.insert_ID),
                             f"{app_caps}_RUN_ID": str(run_ID),

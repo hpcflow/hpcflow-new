@@ -795,12 +795,21 @@ class ElementActionRun(AppAware):
         )
 
     def get_app_std_path(self) -> Path:
-        assert self.submission_idx is not None
         std_dir = Submission.get_app_std_path(
             self.workflow.submissions_path,
             self.submission_idx,
         )
-        return std_dir / f"{self.id_}.txt"  # TODO: refactor
+        return self.get_run_app_std_path(std_dir, self.id_)
+
+    @staticmethod
+    def get_run_app_std_path(std_dir: Path, run_id: int) -> Path:
+        inner_size = 500
+        outer_size = inner_size**2  # 250,000
+        outer_start = (run_id // outer_size) * outer_size
+        inner_start = (run_id // inner_size) * inner_size
+        outer_dir = f"{outer_start}-{outer_start + outer_size - 1}"
+        inner_dir = f"{inner_start}-{inner_start + inner_size - 1}"
+        return std_dir / outer_dir / inner_dir / f"{run_id}.txt"
 
     @TimeIt.decorator
     def get_resources(self) -> Mapping[str, Any]:

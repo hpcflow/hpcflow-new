@@ -1,4 +1,5 @@
 from os import PathLike
+from pathlib import Path
 from typing import Literal, Union
 
 
@@ -32,6 +33,7 @@ class DeferredFileWriter:
 
     def _ensure_open(self):
         if not self._is_open:
+            Path(self.filename).parent.mkdir(parents=True, exist_ok=True)
             self.file = open(self.filename, self.mode, encoding="utf-8", **self.kwargs)
             self._is_open = True
 
