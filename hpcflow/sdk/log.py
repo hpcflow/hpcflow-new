@@ -57,16 +57,65 @@ class TimeIt:
     #: Preceding trace indices.
     trace_idx_prev: ClassVar[list[int]] = []
 
+    def __init__(self, name: str | None = None):
+        self.name = name
+        self._tic: float | None = None
+        self._trace_key: tuple[str, ...] | None = None
+
     def __enter__(self):
         self.__class__.active = True
         return self
 
+    def __enter__(self):
+        cls = self.__class__
+
+        # `with TimeIt():` starts the profiling session.
+        if self.name is None:
+            cls.active = True
+            return self
+
+        # Named spans do nothing when profiling isn't active.
+        if not cls.active:
+            return self
+
+        cls.trace.append(self.name)
+        self._trace_key = tuple(cls.trace)
+
+        if cls.trace_prev == cls.trace:
+            new_trace_idx = cls.trace_idx_prev[-1] + 1
+        else:
+            new_trace_idx = 0
+
+        cls.trace_idx.append(new_trace_idx)
+        self._tic = time.perf_counter()
+
+        return self
+
     def __exit__(self, exc_type, exc_val, exc_tb):
+        cls = self.__class__
+
+        # top-level profiling session.
+        if self.name is None:
+            try:
+                cls.summarise_string()
+            finally:
+                cls.reset()
+                cls.active = False
+            return
+
+        # named span while instrumentation wasn't active.
+        if self._tic is None:
+            return
+
         try:
-            self.__class__.summarise_string()
+            elapsed = time.perf_counter() - self._tic
+            cls.timers[self._trace_key].append(elapsed)
         finally:
-            self.__class__.reset()
-            self.__class__.active = False
+            cls.trace_prev = list(cls.trace)
+            cls.trace_idx_prev = list(cls.trace_idx)
+
+            cls.trace.pop()
+            cls.trace_idx.pop()
 
     @classmethod
     def decorator(cls, func: Callable[P, T]) -> Callable[P, T]:
