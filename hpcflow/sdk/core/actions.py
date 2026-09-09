@@ -3604,7 +3604,10 @@ class Action(JSONLike):
                     os.environ["{app_caps}_BLOCK_IDX"],
                     os.environ["{app_caps}_BLOCK_ACT_IDX"],
                 )
-                with EAR.raise_on_failure_threshold() as unset_params:
+                with (
+                    EAR.raise_on_failure_threshold() as unset_params,
+                    wk._store.parameters_metadata_cache(),
+                ):
                     func_kwargs = EAR.get_py_script_func_kwargs(
                         raise_on_unset=False,
                         add_script_files=True,
@@ -3627,7 +3630,10 @@ class Action(JSONLike):
             py_main_block_outputs = dedent(
                 """\
                 with TimeIt("script.outputs"):
-                    with app.redirect_std_to_file(std_path, preamble=run_std_preamble):
+                    with (
+                        app.redirect_std_to_file(std_path, preamble=run_std_preamble),
+                        wk._store.parameters_metadata_cache(),
+                    ):
                         for name_i, out_i in outputs.items():
                             wk.set_parameter_value(param_id=EAR.data_idx[f"outputs.{name_i}"], value=out_i)
                 """
@@ -3645,7 +3651,10 @@ class Action(JSONLike):
             py_main_block_outputs = dedent(
                 """\
                 with TimeIt("script.outputs"):
-                    with app.redirect_std_to_file(std_path, preamble=run_std_preamble):
+                    with (
+                        app.redirect_std_to_file(std_path, preamble=run_std_preamble),
+                        wk._store.parameters_metadata_cache(),
+                    ):
                         wk.save_parameter(name="outputs.{output_typ}", value=output, EAR_ID=run_id)
                 """
             ).format(output_typ=self.output_file_parsers[0].output.typ)

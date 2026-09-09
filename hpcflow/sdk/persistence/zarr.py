@@ -633,8 +633,14 @@ class ZarrPersistentStore(
         # cache base-parameter file data, if `self.use_cache`:
         self._param_file_cache: dict[tuple[int, int], list[dict[str, Any]]] = {}
 
-        # caches of parameter sources array, and data array zarr group:
+        # cache of parameter sources Array object
+        self._parameter_sources_zarr_array: Array | None = None
+        # cache of parameter sources array data (set in chunks):
         self._parameter_sources_array: NDArray | None = None
+        # which chunks are cached:
+        self._parameter_sources_cached_chunks: set[int] = set()
+
+        # cache of data array zarr group:
         # an empty dict means there are no parameter data array groups!
         self._parameter_data_array_group: dict[int, NDArray] | None = None
 
@@ -650,22 +656,26 @@ class ZarrPersistentStore(
         super()._reset_cache()
         self._param_file_cache = {}
 
+    def _reset_parameters_metadata_cache(self):
+        self._parameter_sources_zarr_array = None
+        self._parameter_sources_array = None
+        self._parameter_sources_cached_chunks.clear()
+        self._parameter_data_array_group = None
+
     @contextmanager
     def parameters_metadata_cache(self) -> Iterator[None]:
         """Context manager for using the parameters-metadata cache, which here means
-        caching the parameter sources array."""
+        caching the parameter sources array object and its chunks."""
         if self._use_parameters_metadata_cache:
             yield
         else:
             self._use_parameters_metadata_cache = True
-            self._parameter_sources_array = None  # clear cache data
-            self._parameter_data_array_group = None
+            self._reset_parameters_metadata_cache()
             try:
                 yield
             finally:
                 self._use_parameters_metadata_cache = False
-                self._parameter_sources_array = None  # clear cache data
-                self._parameter_data_array_group = None
+                self._reset_parameters_metadata_cache()
 
     @TimeIt.decorator
     def get_parameter_data_array_group(self, parameter_idx: int) -> dict[int, Group]:
@@ -1574,6 +1584,10 @@ class ZarrPersistentStore(
         params = self._get_persistent_parameters(param_ids)
         param_encode_root_group = self._get_parameter_user_array_group(mode="r+")
 
+        if self._use_parameters_metadata_cache:
+            # invalidate cache, because the data array groups might be added to
+            self._parameter_data_array_group = None
+
         param_updates = defaultdict(list)
         for param_id, (value, is_file) in set_parameters.items():
             param_i = params[param_id]
@@ -1684,7 +1698,7 @@ class ZarrPersistentStore(
         if self.use_cache and self.num_params_cache is not None:
             num = self.num_params_cache
         else:
-            num = len(self._get_parameter_sources_array())
+            num = len(self.get_parameter_sources_array())
         if self.use_cache and self.num_params_cache is None:
             self.num_params_cache = num
         return num
@@ -1717,8 +1731,47 @@ class ZarrPersistentStore(
         return self._get_root_group(mode=mode, **kwargs).get(self._param_grp_name)
 
     @TimeIt.decorator
-    def _get_parameter_sources_array(self, mode: str = "r") -> Array:
+    def _get_parameter_sources_array(self, mode="r") -> Array:
         return self._get_parameter_group(mode=mode).get(self._param_sources_arr_name)
+
+    @TimeIt.decorator
+    def get_parameter_sources_array(self, mode="r") -> Array:
+        if self._use_parameters_metadata_cache:
+            if self._parameter_sources_zarr_array is None:
+                self._parameter_sources_zarr_array = self._get_parameter_sources_array(
+                    mode="r"
+                )
+            return self._parameter_sources_zarr_array
+
+        return self._get_parameter_sources_array(mode=mode)
+
+    @TimeIt.decorator
+    def _read_parameter_sources(self, id_lst: Iterable[int]) -> NDArray:
+
+        id_arr = np.asarray(list(id_lst), dtype=int)
+        arr = self.get_parameter_sources_array()
+
+        if np.any(id_arr < 0) or np.any(id_arr >= len(arr)):
+            raise MissingParameterData(id_lst) from None
+
+        if not self._use_parameters_metadata_cache:
+            return arr.get_coordinate_selection(id_arr)
+
+        if self._parameter_sources_array is None:
+            # initialise the cache:
+            self._parameter_sources_array = np.empty(arr.shape, dtype=object)
+
+        chunk_size = arr.chunks[0]
+
+        for chunk_idx in np.unique(id_arr // chunk_size):
+            chunk_idx = int(chunk_idx)
+            if chunk_idx not in self._parameter_sources_cached_chunks:
+                start = chunk_idx * chunk_size
+                stop = min(start + chunk_size, len(arr))
+                self._parameter_sources_array[start:stop] = arr[start:stop]
+                self._parameter_sources_cached_chunks.add(chunk_idx)
+
+        return self._parameter_sources_array[id_arr]
 
     @TimeIt.decorator
     def _get_parameter_user_array_group(self, mode: str = "r") -> Group:
@@ -2345,12 +2398,7 @@ class ZarrPersistentStore(
     ) -> tuple[dict[int, Any], dict[int, Any]]:
 
         id_lst = list(id_lst)
-        src_arr = self._get_parameter_sources_array()
-        try:
-            src_arr_dat = src_arr.get_coordinate_selection(id_lst)
-        except IndexError:
-            raise MissingParameterData(id_lst) from None
-
+        src_arr_dat = self._read_parameter_sources(id_lst)
         src_dat = dict(zip(id_lst, src_arr_dat))
 
         # map run param IDs to source run IDs, and inverse:
@@ -2434,11 +2482,7 @@ class ZarrPersistentStore(
     ) -> dict[int, ParamSource]:
         sources, id_lst = self._get_cached_persistent_param_sources(id_lst)
         if id_lst:
-            src_arr = self._get_parameter_sources_array()
-            try:
-                src_arr_dat = src_arr.get_coordinate_selection(id_lst)
-            except IndexError:
-                raise MissingParameterData(id_lst) from None
+            src_arr_dat = self._read_parameter_sources(id_lst)
             new_sources = dict(zip(id_lst, src_arr_dat))
             self.param_sources_cache.update(new_sources)
             sources.update(new_sources)

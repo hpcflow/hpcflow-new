@@ -112,14 +112,14 @@ def update_param_source_dict(source: ParamSource, update: ParamSource) -> ParamS
     return cast("ParamSource", dict(sorted({**source, **update}.items())))
 
 
-def writes_parameter_data(func: Callable):
-    """Decorator function that should wrap `PersistentStore` methods that write
-    parameter-associated data.
+def writes_parameter_metadata(func: Callable):
+    """Decorator function that should wrap `PersistentStore` methods that modify
+    parameter metadata.
 
     Notes
     -----
     This decorator checks that the parameters-metadata cache is not in use, which should
-    not be used during writing of parameter-associated data.
+    not be used during writing of parameter metadata.
     """
 
     @wraps(func)
@@ -1965,7 +1965,7 @@ class PersistentStore(
         if save:
             self.save()
 
-    @writes_parameter_data
+    @writes_parameter_metadata
     @TimeIt.decorator
     def _add_parameter(
         self,
@@ -2115,7 +2115,7 @@ class PersistentStore(
                     with dst_path.open("wt") as fp:
                         fp.write(dat["contents"])
 
-    @writes_parameter_data
+    @writes_parameter_metadata
     def add_set_parameter(
         self,
         data: ParameterValue | list | tuple | set | dict | int | float | str | Any,
@@ -2127,7 +2127,7 @@ class PersistentStore(
         """
         return self._add_parameter(data=data, is_set=True, source=source, save=save)
 
-    @writes_parameter_data
+    @writes_parameter_metadata
     @TimeIt.decorator
     def add_unset_parameter(self, source: ParamSource, save: bool = True) -> int:
         """
@@ -2138,7 +2138,6 @@ class PersistentStore(
     @abstractmethod
     def _set_parameter_values(self, set_parameters: dict[int, tuple[Any, bool]]): ...
 
-    @writes_parameter_data
     def set_parameter_value(
         self, param_id: int, value: Any, is_file: bool = False, save: bool = True
     ):
@@ -2152,7 +2151,6 @@ class PersistentStore(
         if save:
             self.save()
 
-    @writes_parameter_data
     def set_parameter_values(self, values: dict[int, Any], save: bool = True):
         """Set multiple non-file parameter values by parameter IDs."""
         param_ids = values.keys()
@@ -2161,7 +2159,7 @@ class PersistentStore(
         if save:
             self.save()
 
-    @writes_parameter_data
+    @writes_parameter_metadata
     def update_param_source(
         self, param_sources: Mapping[int, ParamSource], save: bool = True
     ) -> None:
