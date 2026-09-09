@@ -881,6 +881,7 @@ class ElementActionRun(AppAware):
             env_lst = self._app.envs
         return env_lst.get(**self.get_environment_spec())
 
+    @TimeIt.decorator
     def get_all_previous_iteration_runs(
         self, include_self: bool = True
     ) -> list[ElementActionRun]:
@@ -895,6 +896,7 @@ class ElementActionRun(AppAware):
             for iter_i in self_elem.iterations[:max_idx]
         ]
 
+    @TimeIt.decorator
     def get_data_in_values(
         self,
         data_in_keys: Sequence[str] | Mapping[str, Mapping[str, Any]] | None = None,
@@ -1121,22 +1123,28 @@ class ElementActionRun(AppAware):
 
         return kwargs
 
+    @TimeIt.decorator
     def write_script_data_in_files(self, block_act_key: BlockActionKey) -> None:
         """
         Write values to files in standard formats.
         """
         for fmt, ins in self.action.script_data_in_grouped.items():
+            if fmt == "direct":
+                continue
             in_vals = self.get_data_in_values(
                 data_in_keys=ins, label_dict=False, raise_on_unset=False
             )
             if writer := self.__data_in_writer_map.get(fmt):
                 writer(self, in_vals, block_act_key)
 
+    @TimeIt.decorator
     def write_program_data_in_files(self, block_act_key: BlockActionKey) -> None:
         """
         Write values to files in standard formats.
         """
         for fmt, ins in self.action.program_data_in_grouped.items():
+            if fmt == "direct":
+                continue
             in_vals = self.get_data_in_values(
                 data_in_keys=ins, label_dict=False, raise_on_unset=False
             )
