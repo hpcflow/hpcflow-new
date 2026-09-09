@@ -1150,7 +1150,8 @@ def redirect_std_to_file(
     file,
     mode: Literal["w", "a"] = "a",
     ignore: Callable[[BaseException], Literal[True] | int] | None = None,
-) -> Iterator[None]:
+    preamble: str | None = None,
+) -> Iterator[DeferredFileWriter]:
     """Temporarily redirect both stdout and stderr to a file, and if an exception is
     raised, catch it, print the traceback to that file, and exit.
 
@@ -1165,14 +1166,16 @@ def redirect_std_to_file(
         exception, and should return True if that exception should be ignored, or
         an integer representing the exit code to exit the program with if that
         exception should not be ignored.  By default, no exceptions are ignored.
+    preamble
+        Optional header to write to the file when it is first written to.
 
     """
     ignore = ignore or (lambda _: 1)
-    with DeferredFileWriter(file, mode=mode) as fp:
+    with DeferredFileWriter(file, mode=mode, preamble=preamble) as fp:
         with contextlib.redirect_stdout(fp):
             with contextlib.redirect_stderr(fp):
                 try:
-                    yield
+                    yield fp
                 except BaseException as exc:
                     ignore_ret = ignore(exc)
                     if ignore_ret is not True:

@@ -75,6 +75,8 @@ class TimeIt:
     child_orchestration_time: ClassVar[float] = 0.0
     #: Time spent by child app processes on doing work (i.e. script evaluation)
     child_work_time: ClassVar[float] = 0.0
+    #: Preamble to write to the summary file, if requested.
+    file_preamble: ClassVar[str | None] = None
 
     def __init__(self, name: str | None = None):
         self.name = name
@@ -439,12 +441,30 @@ class TimeIt:
             path = Path(cls.file_path)
             path.parent.mkdir(parents=True, exist_ok=True)
 
+            write_preamble = cls.file_preamble and (
+                not path.exists() or path.stat().st_size == 0
+            )
+            preamble = cls.file_preamble if write_preamble else ""
+
             if cls.child_orchestration_time:
-                # want to show the outer process timings first; so prepend:
+                # want outer process timings before child timings, but preserve
+                # the run preamble at the very top.
                 existing = path.read_text(encoding="utf-8") if path.exists() else ""
-                path.write_text(out_str + "\n" + existing, encoding="utf-8")
+
+                if cls.file_preamble:
+                    if existing.startswith(cls.file_preamble):
+                        existing = existing[len(cls.file_preamble) :]
+
+                    content = cls.file_preamble + out_str + "\n" + existing
+                else:
+                    content = out_str + "\n" + existing
+
+                path.write_text(content, encoding="utf-8")
+
             else:
                 with path.open(cls.file_mode, encoding="utf-8") as fh:
+                    if preamble:
+                        fh.write(preamble)
                     fh.write(out_str)
         else:
             print(out_str)

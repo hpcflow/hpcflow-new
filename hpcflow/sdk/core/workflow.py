@@ -9,12 +9,14 @@ from contextlib import contextmanager, nullcontext
 import copy
 from dataclasses import dataclass, field
 
+from datetime import datetime, timezone
 from functools import wraps
 import os
 from pathlib import Path
 import random
 import shutil
 import string
+import sys
 from threading import Thread
 import time
 from typing import ParamSpec, TypeVar, overload, cast, TYPE_CHECKING
@@ -4566,6 +4568,24 @@ class Workflow(AppAware):
 
         return submission_jobscripts, all_element_deps
 
+    @staticmethod
+    def _timeit_run_end(
+        run_ID: int, run_wall_start: float, jobscript_std=None, status: str = "completed"
+    ) -> None:
+        if not TimeIt.active:
+            return
+
+        elapsed = time.perf_counter() - run_wall_start
+        timestamp = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+        print(
+            f"[TIMEIT] run-end {timestamp} "
+            f"run_id={run_ID} "
+            f"status={status} "
+            f"elapsed={elapsed:.3f}s",
+            file=jobscript_std,
+            flush=True,
+        )
+
     @TimeIt.decorator
     @load_workflow_config
     def execute_run(
@@ -4575,6 +4595,12 @@ class Workflow(AppAware):
         run_ID: int,
     ) -> None:
         """Execute commands of a run via a subprocess."""
+
+        if TimeIt.active:
+            # write out to stdout:
+            run_wall_start = time.perf_counter()
+            timestamp = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+            print(f"[TIMEIT] run-start {timestamp} run_id={run_ID}", flush=True)
 
         # CD to submission tmp dir to ensure std streams and exceptions have somewhere
         # sensible to go:
@@ -4589,13 +4615,39 @@ class Workflow(AppAware):
             TimeIt.file_path = run_std_path
             TimeIt.file_mode = "a"
 
+        jobscript_std = sys.stdout
+        run_std_preamble = None
+
         # redirect (as much as possible) app-generated stdout/err to a dedicated file:
-        with redirect_std_to_file(run_std_path):
+        with redirect_std_to_file(run_std_path) as run_std:
             with TimeIt("execute_run.prepare"):
                 with self._store.cached_load():
                     with TimeIt("execute_run.load_run"):
                         js_idx = cast("int", block_act_key[0])
                         run = self.get_EARs_from_IDs([run_ID])[0]
+                        run_std_preamble = run.get_run_std_preamble()
+                        run_std.preamble = run_std_preamble
+                        if TimeIt.active:
+                            TimeIt.file_preamble = run_std_preamble
+                            # write out to stdout:
+                            timestamp = datetime.now(timezone.utc).isoformat(
+                                timespec="milliseconds"
+                            )
+                            run_pars = run.parents()
+                            print(
+                                (
+                                    f"[TIMEIT] run-parent "
+                                    f"{timestamp} run_id={run_ID} "
+                                    f"task={run_pars['task']} "
+                                    f"element={run_pars['element']} "
+                                    f"iteration={run_pars['iteration']} "
+                                    f"loop={run_pars['loop']} "
+                                    f"action={run_pars['action']}"
+                                ),
+                                file=jobscript_std,
+                                flush=True,
+                            )
+
                         run_dir = None
                         if run.action.requires_dir:
                             run_dir = run.get_directory()
@@ -4643,6 +4695,13 @@ class Workflow(AppAware):
                                     run=run,
                                     exit_code=1,
                                 )
+                                if TimeIt.active:
+                                    self._timeit_run_end(
+                                        run_ID=run.id_,
+                                        run_wall_start=run_wall_start,
+                                        status="unset-parameters",
+                                        jobscript_std=jobscript_std,
+                                    )
                                 return
 
                             # sufficient parameter data is set so far, but need to pass `unset_params`
@@ -4822,7 +4881,7 @@ class Workflow(AppAware):
                 command_time = time.perf_counter() - t_cmd_start
 
         # redirect (as much as possible) app-generated stdout/err to a dedicated file:
-        with redirect_std_to_file(run_std_path):
+        with redirect_std_to_file(run_std_path, preamble=run_std_preamble):
             with TimeIt("execute_run.finalise"):
                 if run.skip:
                     ret_code = SKIPPED_EXIT_CODE
@@ -4841,6 +4900,7 @@ class Workflow(AppAware):
                 )
 
         if TimeIt.active:
+            self._timeit_run_end(run_ID=run.id_, run_wall_start=run_wall_start)
             TimeIt.run_command_time = command_time
             TimeIt.child_orchestration_time = sum(exe.child_orchestration_times)
             TimeIt.child_work_time = sum(exe.child_work_times)

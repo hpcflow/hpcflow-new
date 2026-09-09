@@ -459,6 +459,31 @@ class ElementActionRun(AppAware):
 
         return EARStatus.pending
 
+    def parents(self) -> dict[str, int | str]:
+        """Get a dict describing the location of the run within the workflow structure."""
+        return {
+            "task": self.task.unique_name,
+            "element": self.element.index,
+            "iteration": self.element_iteration.index,
+            "loop": str(self.element_iteration.loop_idx),
+            "action": self.element_action.action_idx,
+        }
+
+    def get_run_std_preamble(self) -> str:
+        """Get the preamble for this run, to be printed as a header to the app-std file
+        on first write."""
+        run_pars = self.parents()
+        return (
+            "Run\n"
+            "===\n"
+            f"Run ID:        {self.id_}\n"
+            f"Task:          {run_pars['task']}\n"
+            f"Element:       {run_pars['element']}\n"
+            f"Iteration:     {run_pars['iteration']}\n"
+            f"Loop index:    {run_pars['loop']}\n"
+            f"Action:        {run_pars['action']}\n\n"
+        )
+
     __RES_RE: ClassVar[Pattern] = re.compile(r"\<\<resource:(\w+)\>\>")
     __ENV_RE: ClassVar[Pattern] = re.compile(
         r"\<\<env:(.*?)\>\>"
@@ -3522,7 +3547,7 @@ class Action(JSONLike):
             run_id = int(os.getenv("{app_caps}_RUN_ID"))
             wk_path = os.getenv("{app_caps}_WK_PATH")
 
-            with app.redirect_std_to_file(std_path):
+            with app.redirect_std_to_file(std_path) as run_std:
 
             """
         ).format(app_module=self._app.module, app_caps=app_caps)
@@ -3541,6 +3566,10 @@ class Action(JSONLike):
                     )
                     wk = app.Workflow(wk_path)
                     EAR = wk.get_EARs_from_IDs([run_id])[0]
+                    run_std_preamble = EAR.get_run_std_preamble()
+                    run_std.preamble = run_std_preamble
+                    if TimeIt.active:
+                        TimeIt.file_preamble = run_std_preamble
             """
         ).format(
             cfg_dir=self._app.config.config_directory,
@@ -3582,7 +3611,7 @@ class Action(JSONLike):
             py_main_block_outputs = dedent(
                 """\
                 with TimeIt("script.outputs"):
-                    with app.redirect_std_to_file(std_path):
+                    with app.redirect_std_to_file(std_path, preamble=run_std_preamble):
                         for name_i, out_i in outputs.items():
                             wk.set_parameter_value(param_id=EAR.data_idx[f"outputs.{name_i}"], value=out_i)
                 """
@@ -3600,7 +3629,7 @@ class Action(JSONLike):
             py_main_block_outputs = dedent(
                 """\
                 with TimeIt("script.outputs"):
-                    with app.redirect_std_to_file(std_path):
+                    with app.redirect_std_to_file(std_path, preamble=run_std_preamble):
                         wk.save_parameter(name="outputs.{output_typ}", value=output, EAR_ID=run_id)
                 """
             ).format(output_typ=self.output_file_parsers[0].output.typ)
@@ -3628,7 +3657,7 @@ class Action(JSONLike):
             )
 
             if TimeIt.active:
-                with app.redirect_std_to_file(std_path):
+                with app.redirect_std_to_file(std_path, preamble=run_std_preamble):
                     print(f"User import time:          {{_user_import_time:.6f}} s")
                     print(f"User script load time:     {{_user_script_load_time:.6f}} s")
                     print(f"App import time:           {{_app_import_time:.6f}} s")                
