@@ -1,4 +1,5 @@
 from typing import Iterable
+import ast
 import re
 
 
@@ -59,6 +60,55 @@ def extract_py_from_future_imports(py_str: str) -> tuple[str, set[str]]:
         py_str = re.sub(pattern, "", py_str, flags=re.MULTILINE)
 
     return (py_str, future_imports)
+
+
+def add_import_timing(py_str: str) -> str:
+    """Add timing instrumentation to user Python scripts."""
+    tree = ast.parse(py_str)
+    body = tree.body
+
+    start_line = 0
+    idx = 0
+
+    # Module docstring
+    if (
+        body
+        and isinstance(body[0], ast.Expr)
+        and isinstance(body[0].value, ast.Constant)
+        and isinstance(body[0].value.value, str)
+    ):
+        start_line = body[0].end_lineno
+        idx = 1
+
+    # __future__ imports
+    while (
+        idx < len(body)
+        and isinstance(body[idx], ast.ImportFrom)
+        and body[idx].module == "__future__"
+    ):
+        start_line = body[idx].end_lineno
+        idx += 1
+
+    # User imports
+    import_end_line = start_line
+    while idx < len(body) and isinstance(body[idx], (ast.Import, ast.ImportFrom)):
+        import_end_line = body[idx].end_lineno
+        idx += 1
+
+    lines = py_str.splitlines(keepends=True)
+
+    # Insert bottom one first so line numbers remain valid
+    lines.insert(
+        import_end_line,
+        "\n_user_import_time = time.perf_counter() - _script_start\n",
+    )
+
+    lines.insert(
+        start_line,
+        "\nimport time\n_script_start = time.perf_counter()\n",
+    )
+
+    return "".join(lines)
 
 
 def capitalise_first_letter(chars: str) -> str:

@@ -4708,6 +4708,7 @@ class Workflow(AppAware):
                                         run.resources.random_seed
                                     ),
                                     f"{app_caps}_RUN_RNG_SPAWN_KEY": rng_spawn_key_str,
+                                    f"{app_caps}_TIMEIT": str(TimeIt.active),
                                 }
 
                                 if (num_threads := run.resources.num_threads) is not None:
@@ -4841,6 +4842,8 @@ class Workflow(AppAware):
 
         if TimeIt.active:
             TimeIt.run_command_time = command_time
+            TimeIt.child_orchestration_time = sum(exe.child_orchestration_times)
+            TimeIt.child_work_time = sum(exe.child_work_times)
 
     @TimeIt.decorator
     def _check_loop_termination(self, run: ElementActionRun) -> set[int]:
@@ -4952,6 +4955,7 @@ class Workflow(AppAware):
                         jobscript=jobscript,
                         environments=sub.environments,
                         raise_on_unset=True,
+                        timeit=sub.timeit,
                     )
                 except OutputFileParserNoOutputError:
                     # no commands to write, might be used just for saving files
@@ -4959,6 +4963,7 @@ class Workflow(AppAware):
 
         return cmd_file_path
 
+    @TimeIt.decorator
     def process_shell_parameter_output(
         self, name: str, value: str, EAR_ID: int, cmd_idx: int, stderr: bool = False
     ) -> Any:
@@ -4969,6 +4974,7 @@ class Workflow(AppAware):
             command = EAR.action.commands[cmd_idx]
             return command.process_std_stream(name, value, stderr)
 
+    @TimeIt.decorator
     def save_parameter(
         self,
         name: str,

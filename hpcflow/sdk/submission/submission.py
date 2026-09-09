@@ -803,6 +803,7 @@ class Submission(JSONLike):
                                 environments=self.environments,
                                 jobscript=js,
                                 raise_on_unset=True,
+                                timeit=self.timeit,
                             )
                         run_cmd_file_names[run.id_] = None
 
@@ -829,6 +830,7 @@ class Submission(JSONLike):
                                     run.try_write_commands(
                                         environments=self.environments,
                                         jobscript=js,
+                                        timeit=self.timeit,
                                     )
                                 except OutputFileParserNoOutputError:
                                     # no commands to write, might be used just for saving

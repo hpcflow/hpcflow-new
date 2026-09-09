@@ -34,6 +34,12 @@ class Executor(AppAware):
         # assigned on (non-aborted) completion of the subprocess via `_subprocess_runner`:
         self.return_code = None
 
+        # overhead times associated with getting and setting parameter data
+        self.child_orchestration_times = []
+
+        # script execution times:
+        self.child_work_times = []
+
     @property
     def q(self):
         if not self._q:
@@ -70,6 +76,17 @@ class Executor(AppAware):
                 self.q.put(message)
                 socket.send_string("shutting down the server")
                 break
+
+            elif message.startswith("timeit:"):
+                parts = message.split(":")
+
+                orchestration_time = float(parts[1])
+                self.child_orchestration_times.append(orchestration_time)
+
+                if len(parts) == 3:
+                    self.child_work_times.append(float(parts[2]))
+
+                socket.send_string("received timeit")
 
             else:
                 socket.send_string(f"received request: {message}")
@@ -211,3 +228,35 @@ class Executor(AppAware):
         cls._app.logger.info(f"send_abort: received reply: {abort_rep!r}")
         socket.close()
         context.term()
+
+    @classmethod
+    def send_timeit(
+        cls,
+        hostname,
+        port_number,
+        orchestration_time,
+        work_time=None,
+    ):
+        """Send orchestration timing from the child process to the main process.
+
+        ``work_time`` is e.g. for user script time, excluding orchestration around it.
+
+        """
+        context = zmq.Context()
+        socket = context.socket(zmq.REQ)
+
+        try:
+            address = f"tcp://{hostname}:{port_number}"
+            socket.connect(address)
+
+            if work_time is None:
+                message = f"timeit:{orchestration_time}"
+            else:
+                message = f"timeit:{orchestration_time}:{work_time}"
+
+            socket.send_string(message)
+            socket.recv_string()
+
+        finally:
+            socket.close()
+            context.term()

@@ -109,6 +109,7 @@ class Bash(Shell):
     JS_RUN_LOG_PATH_DISABLE: ClassVar[str] = '" "'
     #: Template for the run execution command.
     JS_RUN_CMD: ClassVar[str] = (
+        "export {app_caps}_APP_LAUNCH_START=\"$(date -u '+%Y-%m-%dT%H:%M:%S.%6NZ')\"\n"
         '{workflow_app_alias} {timeit}internal workflow "$WK_PATH_ARG" execute-run '
         "$SUB_IDX $JS_IDX $block_idx $block_act_idx $EAR_ID\n"
     )
@@ -163,12 +164,12 @@ class Bash(Shell):
     """
     )
     #: Template for a jobscript-block header.
-    JS_BLOCK_HEADER: ClassVar[str] = dedent(  # for single-block jobscripts only
+    JS_BLOCK_HEADER: ClassVar[str] = dedent(
         """\
         block_idx=0
         export {app_caps}_BLOCK_IDX=0
         """
-    )
+    )  # for single-block jobscripts only
     #: Template for single-element execution.
     JS_ELEMENT_SINGLE: ClassVar[str] = dedent(
         """\
@@ -313,6 +314,7 @@ class Bash(Shell):
         cmd_idx: int,
         stderr: bool,
         app_name: str,
+        timeit: bool,
     ):
         """
         Produce code to save a parameter's value into the workflow persistent store.
@@ -321,8 +323,10 @@ class Bash(Shell):
         #   and test.
         stderr_str = " --stderr" if stderr else ""
         app_caps = app_name.upper()
+        timeit_str = " --timeit" if timeit else ""
         return (
-            f'{workflow_app_alias} --std-stream "${app_caps}_RUN_STD_PATH" '
+            f"export {app_caps}_APP_LAUNCH_START=\"$(date -u '+%Y-%m-%dT%H:%M:%S.%6NZ')\"\n"
+            f'{workflow_app_alias}{timeit_str} --std-stream "${app_caps}_RUN_STD_PATH" '
             f'internal workflow "${app_caps}_WK_PATH_ARG" save-parameter {stderr_str}'
             f'"--" {param_name} ${shell_var_name} ${app_caps}_RUN_ID {cmd_idx}'
             f"\n"

@@ -62,6 +62,8 @@ from jinja2 import (
     meta as jinja_meta,
 )
 
+from hpcflow.sdk.utils.strings import add_import_timing
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Container, Iterable, Iterator, Sequence
     from datetime import datetime
@@ -1296,6 +1298,7 @@ class ElementActionRun(AppAware):
         jobscript: Jobscript,
         environments: EnvironmentsList,
         raise_on_unset: Literal[True],
+        timeit: bool = False,
     ) -> Path: ...
 
     @overload
@@ -1304,6 +1307,7 @@ class ElementActionRun(AppAware):
         jobscript: Jobscript,
         environments: EnvironmentsList,
         raise_on_unset: Literal[False] = False,
+        timeit: bool = False,
     ) -> Path | None: ...
 
     def try_write_commands(
@@ -1311,6 +1315,7 @@ class ElementActionRun(AppAware):
         jobscript: Jobscript,
         environments: EnvironmentsList,
         raise_on_unset: bool = False,
+        timeit: bool = False,
     ) -> Path | None:
         """Attempt to write the commands file for this run."""
         app_name = self._app.package_name
@@ -1336,6 +1341,7 @@ class ElementActionRun(AppAware):
                     cmd_idx=cmd_idx,
                     stderr=(st_typ == "stderr"),
                     app_name=app_name,
+                    timeit=timeit,
                 )
 
         commands_fmt = jobscript.shell.format_commands_file(app_name, commands)
@@ -3490,14 +3496,26 @@ class Action(JSONLike):
             # might be used just for saving files:
             return ""
 
+        # add timing instrumentation:
+        script_str = add_import_timing(script_str)
+
         app_caps = self._app.package_name.upper()
         py_imports = dedent(
             """\
+            _user_script_load_time = time.perf_counter() - _script_start - _user_import_time
+
             import argparse
             import os
             from pathlib import Path
 
+            _app_import_start = time.perf_counter()
+
             import {app_module} as app
+            from hpcflow.sdk.log import TimeIt
+
+            _app_import_time = time.perf_counter() - _app_import_start
+
+            TimeIt.active = os.environ.get("{app_caps}_TIMEIT") == "True"
 
             std_path = os.getenv("{app_caps}_RUN_STD_PATH")
             log_path = os.getenv("{app_caps}_RUN_LOG_PATH")
@@ -3515,13 +3533,14 @@ class Action(JSONLike):
         # `get_py_script_func_kwargs`)
         py_main_block_workflow_load = dedent(
             """\
-                app.load_config(
-                    overrides={{"log_file_path": Path(log_path)}},
-                    config_dir=r"{cfg_dir}",
-                    config_key=r"{cfg_invoc_key}",
-                )
-                wk = app.Workflow(wk_path)
-                EAR = wk.get_EARs_from_IDs([run_id])[0]
+                with TimeIt("script.setup"):
+                    app.load_config(
+                        overrides={{"log_file_path": Path(log_path)}},
+                        config_dir=r"{cfg_dir}",
+                        config_key=r"{cfg_invoc_key}",
+                    )
+                    wk = app.Workflow(wk_path)
+                    EAR = wk.get_EARs_from_IDs([run_id])[0]
             """
         ).format(
             cfg_dir=self._app.config.config_directory,
@@ -3534,44 +3553,88 @@ class Action(JSONLike):
 
         func_kwargs_str = dedent(
             """\
-            blk_act_key = (
-                os.environ["{app_caps}_JS_IDX"],
-                os.environ["{app_caps}_BLOCK_IDX"],
-                os.environ["{app_caps}_BLOCK_ACT_IDX"],
-            )
-            with EAR.raise_on_failure_threshold() as unset_params:
-                func_kwargs = EAR.get_py_script_func_kwargs(
-                    raise_on_unset=False,
-                    add_script_files=True,
-                    blk_act_key=blk_act_key,
+            with TimeIt("script.prepare_inputs"):
+                blk_act_key = (
+                    os.environ["{app_caps}_JS_IDX"],
+                    os.environ["{app_caps}_BLOCK_IDX"],
+                    os.environ["{app_caps}_BLOCK_ACT_IDX"],
                 )
+                with EAR.raise_on_failure_threshold() as unset_params:
+                    func_kwargs = EAR.get_py_script_func_kwargs(
+                        raise_on_unset=False,
+                        add_script_files=True,
+                        blk_act_key=blk_act_key,
+                    )
         """
         ).format(app_caps=app_caps)
 
         script_main_func = Path(script_name).stem
         func_invoke_str = f"{script_main_func}(**func_kwargs)"
         if not self.is_OFP and "direct" in self.script_data_out_grouped:
-            py_main_block_invoke = f"outputs = {func_invoke_str}"
+            py_main_block_invoke = dedent(
+                f"""\
+                with TimeIt("script.user_work"):
+                    _work_start = time.perf_counter()
+                    outputs = {func_invoke_str}
+                    _user_work_time = time.perf_counter() - _work_start
+                """
+            )
             py_main_block_outputs = dedent(
                 """\
-                with app.redirect_std_to_file(std_path):
-                    for name_i, out_i in outputs.items():
-                        wk.set_parameter_value(param_id=EAR.data_idx[f"outputs.{name_i}"], value=out_i)
+                with TimeIt("script.outputs"):
+                    with app.redirect_std_to_file(std_path):
+                        for name_i, out_i in outputs.items():
+                            wk.set_parameter_value(param_id=EAR.data_idx[f"outputs.{name_i}"], value=out_i)
                 """
             )
         elif self.is_OFP:
-            py_main_block_invoke = f"output = {func_invoke_str}"
+            py_main_block_invoke = dedent(
+                f"""\
+                with TimeIt("script.user_work"):
+                    _work_start = time.perf_counter()
+                    output = {func_invoke_str}
+                    _user_work_time = time.perf_counter() - _work_start
+                """
+            )
             assert self.output_file_parsers[0].output
             py_main_block_outputs = dedent(
                 """\
-                with app.redirect_std_to_file(std_path):
-                    wk.save_parameter(name="outputs.{output_typ}", value=output, EAR_ID=run_id)
+                with TimeIt("script.outputs"):
+                    with app.redirect_std_to_file(std_path):
+                        wk.save_parameter(name="outputs.{output_typ}", value=output, EAR_ID=run_id)
                 """
             ).format(output_typ=self.output_file_parsers[0].output.typ)
         else:
-            py_main_block_invoke = func_invoke_str
+            py_main_block_invoke = dedent(
+                f"""\
+                with TimeIt("script.user_work"):
+                    _work_start = time.perf_counter()
+                    {func_invoke_str}
+                    _user_work_time = time.perf_counter() - _work_start
+                """
+            )
             py_main_block_outputs = ""
 
+        py_main_block_timing = dedent(
+            """\
+            _script_time = time.perf_counter() - _script_start
+            _script_orchestration_time = _script_time - _user_work_time
+
+            app.Executor.send_timeit(
+                hostname="localhost",
+                port_number=int(os.environ["{app_caps}_RUN_PORT"]),
+                orchestration_time=_script_orchestration_time,
+                work_time=_user_work_time,
+            )
+
+            if TimeIt.active:
+                with app.redirect_std_to_file(std_path):
+                    print(f"User import time:          {{_user_import_time:.6f}} s")
+                    print(f"User script load time:     {{_user_script_load_time:.6f}} s")
+                    print(f"App import time:           {{_app_import_time:.6f}} s")                
+                    TimeIt.summarise_string()
+            """
+        ).format(app_caps=app_caps)
         wk_load = (
             "\n" + indent(py_main_block_workflow_load, tab_indent_2)
             if py_main_block_workflow_load
@@ -3584,6 +3647,7 @@ class Action(JSONLike):
             {func_kwargs}
             {invoke}
             {outputs}
+            {timing}
             """
         ).format(
             py_imports=indent(py_imports, tab_indent),
@@ -3591,6 +3655,7 @@ class Action(JSONLike):
             func_kwargs=indent(func_kwargs_str, tab_indent_2),
             invoke=indent(py_main_block_invoke, tab_indent),
             outputs=indent(dedent(py_main_block_outputs), tab_indent),
+            timing=indent(py_main_block_timing, tab_indent),
         )
 
         out = dedent(

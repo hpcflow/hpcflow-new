@@ -1604,6 +1604,7 @@ class Jobscript(JSONLike):
             run_cmd = shell.JS_RUN_CMD.format(
                 workflow_app_alias=self.workflow_app_alias,
                 timeit="--timeit " if self.submission.timeit else "",
+                app_caps=app_caps,
             )
 
             if self.resources.write_app_logs:
