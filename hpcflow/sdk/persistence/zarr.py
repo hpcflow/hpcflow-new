@@ -157,6 +157,7 @@ def _zarr_get_coord_selection(arr: Array, selection: Any, logger: Logger):
     return _inner(arr, selection)
 
 
+@TimeIt.decorator
 def _encode_numpy_array(
     obj: NDArray,
     type_lookup: TypeLookup,
@@ -182,6 +183,7 @@ def _encode_numpy_array(
     return len(type_lookup["arrays"]) - 1
 
 
+@TimeIt.decorator
 def _decode_numpy_arrays(
     obj: dict | None,
     type_lookup: TypeLookup,
@@ -210,6 +212,7 @@ def _decode_numpy_arrays(
     return obj_
 
 
+@TimeIt.decorator
 def _encode_masked_array(
     obj: MaskedArray,
     type_lookup: TypeLookup,
@@ -231,6 +234,7 @@ def _encode_masked_array(
     return obj.fill_value.item()
 
 
+@TimeIt.decorator
 def _decode_masked_arrays(
     obj: dict,
     type_lookup: TypeLookup,
@@ -1529,6 +1533,7 @@ class ZarrPersistentStore(
                     )
                     sub["jobscripts"][js_idx].update(js_meta_i)
 
+    @TimeIt.decorator
     def _append_parameters(self, params: Sequence[StoreParameter]):
         """Add new persistent parameters."""
         self._ensure_all_encoders()

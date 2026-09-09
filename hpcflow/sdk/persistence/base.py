@@ -777,6 +777,7 @@ class StoreParameter:
     _all_encoders: ClassVar[dict[type, Callable]] = {}
     _all_decoders: ClassVar[dict[str, Callable]] = {}
 
+    @TimeIt.decorator
     def encode(self, **kwargs) -> dict[str, Any] | int:
         """Prepare store parameter data for the persistent store."""
         if self.is_set:
@@ -794,6 +795,7 @@ class StoreParameter:
 
         return isinstance(value, PV)
 
+    @TimeIt.decorator
     def _encode(
         self,
         obj: ParameterTypes,

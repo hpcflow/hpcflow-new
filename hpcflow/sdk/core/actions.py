@@ -14,6 +14,7 @@ import contextlib
 from collections import defaultdict
 from pathlib import Path
 import re
+import textwrap
 import warnings
 from functools import partial
 from itertools import chain
@@ -461,12 +462,13 @@ class ElementActionRun(AppAware):
 
     def parents(self) -> dict[str, int | str]:
         """Get a dict describing the location of the run within the workflow structure."""
+        elem_act = self.element_action
         return {
-            "task": self.task.unique_name,
+            "task": f"{self.task.insert_ID} ({self.task.unique_name!r})",
             "element": self.element.index,
             "iteration": self.element_iteration.index,
             "loop": str(self.element_iteration.loop_idx),
-            "action": self.element_action.action_idx,
+            "action": f"{elem_act.action_idx} ({elem_act.action.short_name()!r})",
         }
 
     def get_run_std_preamble(self) -> str:
@@ -2532,6 +2534,12 @@ class Action(JSONLike):
             out.append(f"rules={self.rules!r}")
 
         return f"{self.__class__.__name__}({', '.join(out)})"
+
+    def short_name(self):
+        out = self.script or self.jinja_template or self.program
+        if not out:
+            out = self.commands[0].command
+        return textwrap.shorten(out, width=90)
 
     def __eq__(self, other: Any) -> bool:
         # TODO: include program and other script attributes etc
