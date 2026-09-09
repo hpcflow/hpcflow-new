@@ -668,18 +668,6 @@ class ZarrPersistentStore(
                 self._parameter_data_array_group = None
 
     @TimeIt.decorator
-    def _read_array_data_parameter_sources(self) -> NDArray:
-        return self._get_parameter_sources_array()[:]
-
-    @TimeIt.decorator
-    def get_parameter_sources_array(self) -> NDArray:
-        if self._use_parameters_metadata_cache:
-            if self._parameter_sources_array is None:
-                self._parameter_sources_array = self._read_array_data_parameter_sources()
-            return self._parameter_sources_array
-        return self._read_array_data_parameter_sources()
-
-    @TimeIt.decorator
     def get_parameter_data_array_group(self, parameter_idx: int) -> dict[int, Group]:
         if self._use_parameters_metadata_cache:
             if self._parameter_data_array_group is None:
@@ -1696,7 +1684,7 @@ class ZarrPersistentStore(
         if self.use_cache and self.num_params_cache is not None:
             num = self.num_params_cache
         else:
-            num = len(self.get_parameter_sources_array())
+            num = len(self._get_parameter_sources_array())
         if self.use_cache and self.num_params_cache is None:
             self.num_params_cache = num
         return num
@@ -2355,12 +2343,11 @@ class ZarrPersistentStore(
     def _get_base_parameters(
         self, id_lst: Iterable[int]
     ) -> tuple[dict[int, Any], dict[int, Any]]:
-        src_arr = self.get_parameter_sources_array()
 
         id_lst = list(id_lst)
-
+        src_arr = self._get_parameter_sources_array()
         try:
-            src_arr_dat = src_arr[id_lst]
+            src_arr_dat = src_arr.get_coordinate_selection(id_lst)
         except IndexError:
             raise MissingParameterData(id_lst) from None
 
@@ -2447,9 +2434,9 @@ class ZarrPersistentStore(
     ) -> dict[int, ParamSource]:
         sources, id_lst = self._get_cached_persistent_param_sources(id_lst)
         if id_lst:
-            src_arr = self.get_parameter_sources_array()
+            src_arr = self._get_parameter_sources_array()
             try:
-                src_arr_dat = src_arr[id_lst]
+                src_arr_dat = src_arr.get_coordinate_selection(id_lst)
             except IndexError:
                 raise MissingParameterData(id_lst) from None
             new_sources = dict(zip(id_lst, src_arr_dat))

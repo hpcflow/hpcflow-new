@@ -1298,6 +1298,7 @@ class WorkflowLoop(AppAware):
             for run_ID, updates in run_new_data_idx.items():
                 cache.run_data_idx[run_ID].update(updates)
 
+    @TimeIt.decorator
     def test_termination(self, element_iter) -> bool:
         """Check if a loop should terminate, given the specified completed element
         iteration."""
