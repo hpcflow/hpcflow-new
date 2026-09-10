@@ -631,6 +631,7 @@ class StoreEAR(Generic[SerFormT, ContextT]):
         submission_idx: int | None = None,
         commands_file_ID: int | None = None,
         run_file_ID: int | None = None,
+        run_file_idx: int | None = None,
         skip: int | None = None,
         success: bool | None = None,
         start_time: datetime | None = None,
@@ -658,6 +659,7 @@ class StoreEAR(Generic[SerFormT, ContextT]):
             commands_file_ID if commands_file_ID is not None else self.commands_file_ID
         )
         run_file_ID = run_file_ID if run_file_ID is not None else self.run_file_ID
+        run_file_idx_ = run_file_idx if run_file_idx is not None else self.run_file_idx
         if data_idx is not None:
             new_data_idx = copy.deepcopy(self.data_idx)
             new_data_idx.update(data_idx)
@@ -676,6 +678,7 @@ class StoreEAR(Generic[SerFormT, ContextT]):
             submission_idx=sub_idx,
             commands_file_ID=cmd_file,
             run_file_ID=run_file_ID,
+            run_file_idx=run_file_idx_,
             skip=skip,
             success=success,
             start_time=start_time,
