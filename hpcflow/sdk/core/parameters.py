@@ -1270,6 +1270,56 @@ class ValueSequence(_BaseSequence, ValuesMixin):
         )
 
     @classmethod
+    def from_repeat(
+        cls,
+        path: str,
+        arr,
+        repeats,
+        axis=None,
+        label: str | int | None = None,
+        nesting_order: float = 0,
+        value_class_method: str | None = None,
+        **kwargs,
+    ) -> Self:
+        """
+        Build a sequence from the return of Numpy's ``repeat`` function.
+        """
+        return super()._from_repeat(
+            path=path,
+            arr=arr,
+            repeats=repeats,
+            axis=axis,
+            label=label,
+            nesting_order=nesting_order,
+            value_class_method=value_class_method,
+            **kwargs,
+        )
+
+    @classmethod
+    def from_tile(
+        cls,
+        path: str,
+        arr,
+        reps,
+        label: str | int | None = None,
+        nesting_order: float = 0,
+        value_class_method: str | None = None,
+        **kwargs,
+    ) -> Self:
+        """
+        Build a sequence from the return of Numpy's ``tile`` function.
+        """
+        return super()._from_tile(
+            path=path,
+            arr=arr,
+            reps=reps,
+            label=label,
+            nesting_order=nesting_order,
+            value_class_method=value_class_method,
+            **kwargs,
+        )
+
+    @classmethod
     def from_file(
         cls,
         path: str,
@@ -2281,6 +2331,54 @@ class InputValue(AbstractInputValue, ValuesMixin):
             start=start,
             stop=stop,
             step=step,
+            path=path,
+            label=label,
+            **kwargs,
+        )
+
+    @classmethod
+    def from_repeat(
+        cls,
+        parameter: Parameter | SchemaInput | str,
+        arr,
+        repeats,
+        axis=None,
+        path: str | None = None,
+        label: str | int | None = None,
+        **kwargs,
+    ) -> Self:
+        """
+        Generate a value from the return of Numpy's ``repeat`` function.
+        """
+        return super()._from_repeat(
+            parameter=parameter,
+            arr=arr,
+            repeats=repeats,
+            axis=axis,
+            path=path,
+            label=label,
+            **kwargs,
+        )
+
+    @classmethod
+    def from_tile(
+        cls,
+        parameter: Parameter | SchemaInput | str,
+        arr,
+        reps,
+        axis=None,
+        path: str | None = None,
+        label: str | int | None = None,
+        **kwargs,
+    ) -> Self:
+        """
+        Generate a value from the return of Numpy's ``tile`` function.
+        """
+        return super()._from_tile(
+            parameter=parameter,
+            arr=arr,
+            reps=reps,
+            axis=axis,
             path=path,
             label=label,
             **kwargs,
