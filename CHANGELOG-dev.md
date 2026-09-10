@@ -1,4 +1,30 @@
 
+<a name="v0.3.0a3"></a>
+## [v0.3.0a3](https://github.com/hpcflow/hpcflow/compare/v0.3.0a2...v0.3.0a3) - 2026.09.10
+
+### ✨ Features
+
+* support separate num_MPI_ranks resource item; fix [#841](https://github.com/hpcflow/hpcflow/issues/841)
+* add `TaskCondition` to allow for conditional element-wise task execution
+* add `TaskSchema.parameter_dependencies` for adding explicity dependencies between tasks
+
+### 🐛 Bug Fixes
+
+* start/end times of runs; and add run_time(_str) property
+* `num_MPI_ranks` in jobscript hash
+* validation of resource items in sequences; preserve case
+* missing test scripts
+* type checking
+* support loop task references as task names when using meta-tasks
+* type checking
+* type checking
+* more tweaks to output label handling
+* test
+* type checking again
+* type checking
+* handling of output labels and improve some test utilities
+
+
 <a name="v0.3.0a2"></a>
 ## [v0.3.0a2](https://github.com/hpcflow/hpcflow/compare/v0.3.0a1...v0.3.0a2) - 2026.09.08
 
