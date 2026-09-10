@@ -574,9 +574,8 @@ def test_rng_spawn_key(tmp_path):
     )
     wk = make_workflow_to_run_command(
         command=command,
-        resources={"any": {"rng_spawn_key": [0, 1], "write_app_logs": True}},
+        resources={"any": {"rng_spawn_key": [0, 1]}},
         path=tmp_path,
-        config={"log_file_level": "debug"},
     )
     wk.submit(wait=True, add_to_known=False)
     stdout = wk.submissions[0].jobscripts[0].get_stdout().strip()
