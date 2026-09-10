@@ -1,4 +1,94 @@
 
+<a name="v0.3.0a4"></a>
+## [v0.3.0a4](https://github.com/hpcflow/hpcflow/compare/v0.3.0a3...v0.3.0a4) - 2026.09.10
+
+### ♻ Code Refactoring
+
+* add run metadata to loop cache to speed up `add_iteration`
+* use a separate array for run submission data
+* use `set_coordinate_selection` in `_append_EARs`
+* better chunking strategy in Zarr run metadata
+
+### ⚡ Performance Improvements
+
+* use nested directories/groups for parameter array data
+* use a single chunk (usually) for tasks array
+* use `parameters_metadata_cache` in `execute_run`
+* add parameters_array_cache to cache user array Zarr groups
+* an optimisation to `__apply_task_conditions`
+* cache parameter sources Zarr array and chunks
+* do not retrieve inputs values in write_script/program_data_in_files for direct format
+* fix disasterous parameter sources array read pattern
+* more `TimeIt`s and more descriptive `EAR.parents()`
+* more comprehensive run-time instrumentation
+* instrument run execution
+* support a large number of app_std files
+* more `TimeIt`s
+* reuse `env_spec_hashable` in `_write_scripts`
+* increase chunk sizes in metadata arrays
+* tweaks to `get_element_iterations`
+* speed up `PersistentStore.__split_pending`
+* use a set for `PendingChanges.set_EARs_initialised`
+* more `TimeIt`s
+* improvements to `initialise_EARs`
+* more `TimeIt`s
+* more caching for `WorkflowLoop.add_iteration`
+* add an LRU cache to `get_default_scheduler`
+* add a fast path to environment specs
+* allow using `with TimeIt("name")` within an existing profiling context
+* implement a base-parameter file cache in Zarr store
+* implement parameters_metadata_cache in Zarr store
+* speed up `dict_values_process_flat`
+* use a cache in `_get_relevant_paths`
+* speed up `__get_cached_persistent_items` and `get_parameter_sources`
+* batch up add_elements and add_element_iterations
+* no need to deepcopy in `get_jobscript_hash` or `get_data_idx`
+* use a set in `ObjectCache -> _get_recursive_deps`
+* redesign base parameter storage to minimise number of files
+* redesign run-metadata storage again to minimise number of files
+* change time-it unit to ms and add more instrumentation
+* expand store cache scope in `_add_submission`
+* refactor `resolve_jobscript_dependencies`
+* refactor `__get_task_index`
+* lazily load element iterations
+* batch up _update_loop_index and _update_iter_data_indices store writes
+* pass relevant run metadata instead of run objects to `LoopCache`
+
+### ✨ Features
+
+* add a preamble describing the run to the app-std file when first written
+
+### 🐛 Bug Fixes
+
+* StoreEAR.update method
+* update poetry lock
+* type checking
+* tests on windows
+* switch back to main test CI branch
+* macos jobscripts
+* leaky config in tests
+* make parent directories in `TimeIt.summarise_string`
+* get_hash for (unordered) sets
+* exception handling in TimeIt
+* read/write param files for multiple output parameters from the same run
+* type checking
+* integration test failures
+* type checking (really)
+* type checking
+* type checking (really, really)
+* type checking (really)
+* type checking
+* rechunk tests
+* remove unused variable
+* submission data in `_update_runs`
+* rechunk run metadata array when adding iterations, if necessary
+* type checking
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.3.0a3"></a>
 ## [v0.3.0a3](https://github.com/hpcflow/hpcflow/compare/v0.3.0a2...v0.3.0a3) - 2026.09.10
 
