@@ -4589,8 +4589,21 @@ class Workflow(AppAware):
         )
 
     @TimeIt.decorator
-    @load_workflow_config
     def execute_run(
+        self,
+        submission_idx: int,
+        block_act_key: BlockActionKey,
+        run_ID: int,
+    ) -> None:
+        """Execute commands of a run via a subprocess, using the parameter metadata
+        cache."""
+        # parameter sources do not change during execution:
+        with self._store.parameters_metadata_cache():
+            return self._execute_run(submission_idx, block_act_key, run_ID)
+
+    @TimeIt.decorator
+    @load_workflow_config
+    def _execute_run(
         self,
         submission_idx: int,
         block_act_key: BlockActionKey,
@@ -4612,6 +4625,7 @@ class Workflow(AppAware):
         run_std_path = ElementActionRun.get_run_app_std_path(sub_str_path, run_ID)
         has_commands = False
         command_time = None
+        exe = None
 
         if TimeIt.active and not TimeIt.file_path:
             TimeIt.file_path = run_std_path
@@ -4904,8 +4918,10 @@ class Workflow(AppAware):
         if TimeIt.active:
             self._timeit_run_end(run_ID=run.id_, run_wall_start=run_wall_start)
             TimeIt.run_command_time = command_time
-            TimeIt.child_orchestration_time = sum(exe.child_orchestration_times)
-            TimeIt.child_work_time = sum(exe.child_work_times)
+            TimeIt.child_orchestration_time = (
+                sum(exe.child_orchestration_times) if exe is not None else 0.0
+            )
+            TimeIt.child_work_time = sum(exe.child_work_times) if exe is not None else 0.0
 
     @TimeIt.decorator
     def _check_loop_termination(self, run: ElementActionRun) -> set[int]:
