@@ -105,9 +105,15 @@ class WindowsPowerShell(Shell):
     JS_RUN_LOG_PATH_ENABLE: ClassVar[str] = 'Join-Path $SUB_LOG_DIR "{run_log_file_name}"'
     #: Template for disabling writing of the app log.
     JS_RUN_LOG_PATH_DISABLE: ClassVar[str] = '" "'
+    #: Template for recording the app launch start time:
+    JS_APP_START_TIMER: ClassVar[str] = dedent(
+        """\
+        $env:{app_caps}_APP_LAUNCH_START = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.ffffffZ')
+    """
+    )
     #: Template for the run execution command.
     JS_RUN_CMD: ClassVar[str] = (
-        "{workflow_app_alias} internal workflow $WK_PATH execute-run "
+        "{workflow_app_alias} {timeit}internal workflow $WK_PATH execute-run "
         "$SUB_IDX $JS_IDX $block_idx $block_act_idx $EAR_ID\n"
     )
     #: Template for the execution command for multiple combined runs.
@@ -126,7 +132,6 @@ class WindowsPowerShell(Shell):
         $env:{app_caps}_RUN_ID = $EAR_ID
         $env:{app_caps}_RUN_LOG_PATH = {run_log_enable_disable}
         $env:{app_caps}_LOG_PATH = $env:{app_caps}_RUN_LOG_PATH
-        $env:{app_caps}_RUN_STD_PATH = Join-Path $SUB_STD_DIR "$env:{app_caps}_RUN_ID.txt"
         $env:{app_caps}_BLOCK_ACT_IDX = $block_act_idx            
 
         Set-Location $SUB_TMP_DIR
@@ -161,12 +166,12 @@ class WindowsPowerShell(Shell):
     """
     )
     #: Template for a jobscript-block header.
-    JS_BLOCK_HEADER: ClassVar[str] = dedent(  # for single-block jobscripts only
+    JS_BLOCK_HEADER: ClassVar[str] = dedent(
         """\
         $block_idx = 0
         $env:{app_caps}_BLOCK_IDX = 0
         """
-    )
+    )  # for single-block jobscripts only
     #: Template for single-element execution.
     JS_ELEMENT_SINGLE: ClassVar[str] = dedent(
         """\
@@ -348,6 +353,7 @@ class WindowsPowerShell(Shell):
         cmd_idx: int,
         stderr: bool,
         app_name: str,
+        timeit: bool,
     ) -> str:
         """
         Produce code to save a parameter's value into the workflow persistent store.
@@ -356,8 +362,10 @@ class WindowsPowerShell(Shell):
         #   and test.
         stderr_str = " --stderr" if stderr else ""
         app_caps = app_name.upper()
+        timeit_str = " --timeit" if timeit else ""
         return (
-            f'{workflow_app_alias} --std-stream "${app_caps}_RUN_STD_PATH" '
+            f"$env:{app_caps}_APP_LAUNCH_START = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.ffffffZ')\n"
+            f'{workflow_app_alias}{timeit_str} --std-stream "${app_caps}_RUN_STD_PATH" '
             f'internal workflow "${app_caps}_WK_PATH" save-parameter {stderr_str}'
             f'"--" {param_name} ${shell_var_name} ${app_caps}_RUN_ID {cmd_idx}'
             f"\n"

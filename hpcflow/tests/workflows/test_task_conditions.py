@@ -38,8 +38,6 @@ def test_task_condition_implicit_dependence(tmp_path):
     wk = hf.Workflow.from_template_data(
         template_name="test_conditional_tasks",
         path=tmp_path,
-        # config={"log_file_level": "debug"},
-        # resources={"any": {"write_app_logs": True}},
         tasks=[
             hf.Task(
                 schema=s1, sequences=[hf.ValueSequence("inputs.p1", values=[True, False])]
@@ -97,8 +95,6 @@ def test_task_condition_no_dependence(tmp_path):
     wk = hf.Workflow.from_template_data(
         template_name="test_conditional_tasks",
         path=tmp_path,
-        # config={"log_file_level": "debug"},
-        # resources={"any": {"write_app_logs": True}},
         tasks=[
             hf.Task(
                 schema=s1, sequences=[hf.ValueSequence("inputs.p1", values=[True, False])]
@@ -158,8 +154,6 @@ def test_task_condition_no_dependence_forking(tmp_path):
     wk = hf.Workflow.from_template_data(
         template_name="test_conditional_tasks",
         path=tmp_path,
-        # config={"log_file_level": "debug"},
-        # resources={"any": {"write_app_logs": True}},
         tasks=[
             hf.Task(schema=s1, inputs={"p1": p1_val}),  # single element
             hf.Task(
@@ -220,8 +214,6 @@ def test_task_condition_implicit_dependence_grouping(tmp_path):
     wk = hf.Workflow.from_template_data(
         template_name="test_conditional_tasks",
         path=tmp_path,
-        # config={"log_file_level": "debug"},
-        # resources={"any": {"write_app_logs": True}},
         tasks=[
             hf.Task(
                 schema=s1,
@@ -294,8 +286,6 @@ def test_task_condition_no_dependence_grouping(tmp_path, p1_values, group_func):
 
     wk = hf.Workflow.from_template_data(
         template_name="test_conditional_tasks",
-        # config={"log_file_level": "debug"},
-        # resources={"any": {"write_app_logs": True}},
         path=tmp_path,
         tasks=[
             hf.Task(
@@ -378,9 +368,7 @@ def test_task_condition_implicit_dependence_loop(tmp_path):
 
     wk = hf.Workflow.from_template_data(
         template_name="test_conditional_tasks",
-        # path=tmp_path,
-        config={"log_file_level": "debug"},
-        resources={"any": {"write_app_logs": True}},
+        path=tmp_path,
         tasks=[
             hf.Task(schema=s1, sequences=[hf.ValueSequence("inputs.p1", values=[0, 1])]),
             hf.Task(
@@ -537,8 +525,6 @@ def test_task_condition_delayed_acceptance_subset_simulation(tmp_path):
     wk = hf.Workflow.from_template_data(
         template_name="test_subset_sim_delayed_acceptance_structure",
         path=tmp_path,
-        # config={"log_file_level": "debug"},
-        # resources={"any": {"write_app_logs": True}},
         tasks=[
             hf.Task(schema=s0, inputs={"p0": 0}),
             hf.Task(schema=s1, sequences=[hf.ValueSequence("inputs.x_0", values=[0, 1])]),

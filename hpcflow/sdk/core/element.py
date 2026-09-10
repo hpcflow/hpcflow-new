@@ -5,6 +5,7 @@ Elements are components of tasks.
 from __future__ import annotations
 import copy
 from dataclasses import dataclass, field, fields
+from functools import lru_cache
 from operator import attrgetter
 from itertools import chain
 import os
@@ -460,7 +461,7 @@ class ElementResources(JSONLike):
             # are combining scripts, then the environments must be the same:
             exclude.append("environments")
 
-        dct = {k: copy.deepcopy(v) for k, v in self.__dict__.items() if k not in exclude}
+        dct = {k: v for k, v in self.__dict__.items() if k not in exclude}
 
         # `combine_scripts==False` and `combine_scripts==None` should have an equivalent
         # contribution to the hash, so always set it to `False` if unset at this point:
@@ -537,6 +538,7 @@ class ElementResources(JSONLike):
 
     @classmethod
     @TimeIt.decorator
+    @lru_cache(maxsize=None)
     def get_default_scheduler(cls, os_name: str, shell_name: str) -> str:
         """
         Get the default value for scheduler.
@@ -893,8 +895,9 @@ class ElementIteration(AppAware):
         if path:
             data_idx = {k: v for k, v in data_idx.items() if k.startswith(path)}
 
-        return copy.deepcopy(data_idx)
+        return dict(data_idx)  # shallow copy should be sufficient
 
+    @TimeIt.decorator
     def __get_parameter_sources(
         self, data_idx: DataIndex, filter_type: str | None, use_task_index: bool
     ) -> Mapping[str, ParamSource | list[ParamSource]]:
@@ -1367,7 +1370,7 @@ class ElementIteration(AppAware):
             resources.setdefault("os_name", ER.get_default_os_name())
             resources.setdefault("shell", ER.get_default_shell())
             if "scheduler" not in resources:
-                resources["scheduler"] = ER.get_default_scheduler(
+                resources["scheduler"] = ER.get_default_scheduler(  # type: ignore[misc]
                     resources["os_name"], resources["shell"]
                 )
             resources.setdefault("platform", ER.get_default_platform())
@@ -1381,6 +1384,30 @@ class ElementIteration(AppAware):
             del resources["combine_scripts"]
 
         return resources
+
+    def get_environment_spec(self, action: Action) -> Mapping[str, Any]:
+        """A faster path to environment specs instead of via ElementResources."""
+        resource_specs = self.get("resources")
+
+        action_env_spec = action.get_environment_spec()
+        env_name = action_env_spec["name"]
+
+        env_spec = dict(action_env_spec)
+
+        for scope in action._get_possible_scopes_reversed():
+            scope_res = resource_specs.get(scope.to_string())
+
+            if not scope_res:
+                continue
+
+            scope_envs = scope_res.get("environments")
+            if not scope_envs:
+                continue
+
+            if user_env_spec := scope_envs.get(env_name):
+                env_spec.update(user_env_spec)
+
+        return env_spec
 
     def get_resources_obj(
         self, action: Action, set_defaults: bool = False
@@ -1433,7 +1460,7 @@ class Element(AppAware):
         seq_idx: Mapping[str, int],
         src_idx: Mapping[str, int],
         iteration_IDs: list[int],
-        iterations: list[dict[str, Any]],
+        iterations: list[dict[str, Any]] | None = None,
     ) -> None:
         self._id = id_
         self._is_pending = is_pending
@@ -1546,6 +1573,10 @@ class Element(AppAware):
         """
         # TODO: fix this
         if self._iteration_objs is None:
+            if self._iterations is None:
+                self._iterations = self.workflow._store.get_element_iteration_dicts(
+                    self._iteration_IDs
+                )
             self._iteration_objs = [
                 self._app.ElementIteration(
                     element=self,

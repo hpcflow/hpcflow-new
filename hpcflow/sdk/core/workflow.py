@@ -9,12 +9,14 @@ from contextlib import contextmanager, nullcontext
 import copy
 from dataclasses import dataclass, field
 
+from datetime import datetime, timezone
 from functools import wraps
 import os
 from pathlib import Path
 import random
 import shutil
 import string
+import sys
 from threading import Thread
 import time
 from typing import ParamSpec, TypeVar, overload, cast, TYPE_CHECKING
@@ -54,6 +56,7 @@ from hpcflow.sdk.core.enums import EARStatus, InputSourceType
 from hpcflow.sdk.core.skip_reason import SkipReason
 from hpcflow.sdk.core.cache import ObjectCache
 from hpcflow.sdk.core.loop_cache import LoopCache, LoopIndex
+from hpcflow.sdk.core.actions import ElementActionRun
 from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.persistence import store_cls_from_str
 from hpcflow.sdk.persistence.defaults import DEFAULT_STORE_FORMAT
@@ -1190,9 +1193,11 @@ class Workflow(AppAware):
                 ts_name_fmt=ts_name_fmt,
                 store_kwargs=store_kwargs,
             )
-            with wk._store.cached_load(), wk.batch_update(
-                is_workflow_creation=True
-            ), wk._store.cache_ctx():
+            with (
+                wk._store.cached_load(),
+                wk.batch_update(is_workflow_creation=True),
+                wk._store.cache_ctx(),
+            ):
                 for idx, task in enumerate(template.tasks):
                     if status:
                         status.update(
@@ -1823,7 +1828,9 @@ class Workflow(AppAware):
         task_js, temp_comps_js = task_c.to_json_like()
         assert temp_comps_js is not None
         self._store.add_template_components(temp_comps_js)
-        self._store.add_task(new_index, cast("Mapping", task_js))
+        self._store.add_task(
+            new_index, cast("Mapping", task_js), task_c.num_all_schema_actions
+        )
 
         # update in-memory workflow template components:
         temp_comps = cast(
@@ -2233,36 +2240,41 @@ class Workflow(AppAware):
 
         return [elements_by_task[path.task][path.elem] for path in index_paths]
 
-    @dataclass
-    class _IndexPath2:
-        iter: int
-        elem: int
-        task: int
-
     @TimeIt.decorator
     def get_element_iterations_from_IDs(
         self, id_lst: Iterable[int]
     ) -> list[ElementIteration]:
         """Return element iteration objects from a list of IDs."""
 
+        id_lst = list(id_lst)
         store_iters = self.get_store_element_iterations(id_lst)
         store_elems = self.get_store_elements(it.element_ID for it in store_iters)
         store_tasks = self.get_store_tasks(el.task_ID for el in store_elems)
 
-        element_idx_by_task: dict[int, set[int]] = defaultdict(set)
+        # parent elements are built without their iteration data, which is loaded on
+        # demand; this avoids retrieving the full iteration/run history of an element
+        # when only a few of its iterations are requested:
+        elements: dict[int, Element] = {}
+        for elem, task in zip(store_elems, store_tasks):
+            if elem.id_ not in elements:
+                elements[elem.id_] = self._app.Element(
+                    task=self.tasks[task.index],
+                    **{
+                        k: v
+                        for k, v in elem.to_dict(None).items()
+                        if k not in ("task_ID", "iterations")
+                    },
+                )
 
-        index_paths: list[Workflow._IndexPath2] = []
-        for itr, elem, task in zip(store_iters, store_elems, store_tasks):
-            iter_idx = elem.iteration_IDs.index(itr.id_)
-            elem_idx = task.element_IDs.index(elem.id_)
-            index_paths.append(Workflow._IndexPath2(iter_idx, elem_idx, task.index))
-            element_idx_by_task[task.index].add(elem_idx)
-
-        elements_by_task = self.__get_elements_by_task_idx(element_idx_by_task)
+        iter_dicts = self._store.get_element_iteration_dicts(id_lst)
 
         return [
-            elements_by_task[path.task][path.elem].iterations[path.iter]
-            for path in index_paths
+            self._app.ElementIteration(
+                element=(element := elements[itr.element_ID]),
+                index=element.iteration_IDs.index(itr.id_),
+                **{k: v for k, v in iter_dat.items() if k != "element_ID"},
+            )
+            for itr, iter_dat in zip(store_iters, iter_dicts)
         ]
 
     @dataclass
@@ -3040,6 +3052,7 @@ class Workflow(AppAware):
             for te in self._store.get_task_elements(task.insert_ID, idx_lst)
         ]
 
+    @TimeIt.decorator
     def set_EAR_start(
         self, run_id: int, run_dir: Path | None, port_number: int | None
     ) -> None:
@@ -3048,6 +3061,7 @@ class Workflow(AppAware):
         with self._store.cached_load(), self.batch_update():
             self._store.set_EAR_start(run_id, run_dir, port_number)
 
+    @TimeIt.decorator
     def set_multi_run_starts(
         self, run_ids: list[int], run_dirs: list[Path | None], port_number: int
     ) -> None:
@@ -3056,6 +3070,7 @@ class Workflow(AppAware):
         with self._store.cached_load(), self.batch_update():
             self._store.set_multi_run_starts(run_ids, run_dirs, port_number)
 
+    @TimeIt.decorator
     def __apply_task_conditions(self, run):
         """When a run has ended, check if any non-group task conditions are defined that
         depend on the run's parameters, and if so, skip any runs of those tasks if the
@@ -3081,15 +3096,15 @@ class Workflow(AppAware):
         new_skips: dict[int, int] = {}
         for not_met_task_ID in conditions_not_met:
             dep_skips = {
-                dep.id_: SkipReason.TASK_CONDITION_NOT_MET
-                for dep in run.get_dependent_EARs(as_objects=True)
-                if dep.task.insert_ID == not_met_task_ID
+                dep_id: SkipReason.TASK_CONDITION_NOT_MET
+                for dep_id in run.get_dependent_EARs(task_insert_ID=not_met_task_ID)
             }
             self.set_EAR_skip(dep_skips)
             new_skips.update({k: v.value for k, v in dep_skips.items()})
 
         return new_skips
 
+    @TimeIt.decorator
     def __apply_group_task_conditions(self, run) -> bool:
         """Before a run starts, check if any group task conditions are defined in the
         run's task, and if so, skip the run if the condition is not met.
@@ -3122,6 +3137,7 @@ class Workflow(AppAware):
                     return False
         return True
 
+    @TimeIt.decorator
     def set_EAR_end(
         self,
         block_act_key: BlockActionKey,
@@ -3766,6 +3782,7 @@ class Workflow(AppAware):
         add_to_known: bool = True,
         tasks: Sequence[int] | None = None,
         quiet: bool = False,
+        timeit: bool = False,
     ) -> tuple[Sequence[SubmissionFailure], Mapping[int, Sequence[int]]]:
         """Submit outstanding EARs for execution.
 
@@ -3782,6 +3799,10 @@ class Workflow(AppAware):
             If True (the default), minimise the total number of jobscripts by performing
             as many merges as possible. This may merge otherwise independent jobscripts,
             such that they are run sequentially rather than in parallel.
+        timeit: bool
+            Time run execution function pathways as the code executes and write out a
+            summary to the app-std file. Only functions decorated by `TimeIt.decorator`
+            are included.
         """
 
         # generate a new submission if there are no pending submissions:
@@ -3794,6 +3815,7 @@ class Workflow(AppAware):
                     JS_parallelism=JS_parallelism,
                     min_jobscripts=min_jobscripts,
                     status=status,
+                    timeit=timeit,
                 )
             ):
                 if status:
@@ -3845,6 +3867,7 @@ class Workflow(AppAware):
         cancel: bool = False,
         status: bool = True,
         quiet: bool = False,
+        timeit: bool = False,
     ) -> Mapping[int, Sequence[int]]: ...
 
     @overload
@@ -3862,6 +3885,7 @@ class Workflow(AppAware):
         cancel: bool = False,
         status: bool = True,
         quiet: bool = False,
+        timeit: bool = False,
     ) -> None: ...
 
     def submit(
@@ -3878,6 +3902,7 @@ class Workflow(AppAware):
         cancel: bool = False,
         status: bool = True,
         quiet: bool = False,
+        timeit: bool = False,
     ) -> Mapping[int, Sequence[int]] | None:
         """Submit the workflow for execution.
 
@@ -3917,6 +3942,10 @@ class Workflow(AppAware):
             If True, display a live status to track submission progress.
         quiet
             If True, do not print messages about the workflow submission.
+        timeit: bool
+            Time run execution function pathways as the code executes and write out a
+            summary to the app-std file. Only functions decorated by `TimeIt.decorator`
+            are included.
         """
 
         # Type hint for mypy
@@ -3932,6 +3961,7 @@ class Workflow(AppAware):
             with (
                 self.batch_update(),
                 self._store.parameters_metadata_cache(),
+                self._store.parameters_array_cache(),
                 self._store.cache_ctx(),
             ):
                 exceptions, submitted_js = self._submit(
@@ -3943,6 +3973,7 @@ class Workflow(AppAware):
                     add_to_known=add_to_known,
                     tasks=tasks,
                     quiet=quiet,
+                    timeit=timeit,
                 )
 
         if exceptions:
@@ -4208,6 +4239,7 @@ class Workflow(AppAware):
         force_array: bool = False,
         min_jobscripts: bool = True,
         status: bool = True,
+        timeit: bool = False,
     ) -> Submission | None:
         """Add a new submission.
 
@@ -4220,6 +4252,10 @@ class Workflow(AppAware):
             If True (the default), minimise the total number of jobscripts by performing
             as many merges as possible. This may merge otherwise independent jobscripts,
             such that they are run sequentially rather than in parallel.
+        timeit: bool
+            Time run execution function pathways as the code executes and write out a
+            summary to the app-std file. Only functions decorated by `TimeIt.decorator`
+            are included.
         """
         # JS_parallelism=None means guess
         # Type hint for mypy
@@ -4228,7 +4264,7 @@ class Workflow(AppAware):
         )
         with status_context as status_, self._store.cached_load(), self.batch_update():
             return self._add_submission(
-                tasks, JS_parallelism, force_array, min_jobscripts, status_
+                tasks, JS_parallelism, force_array, min_jobscripts, status_, timeit
             )
 
     @TimeIt.decorator
@@ -4240,6 +4276,7 @@ class Workflow(AppAware):
         force_array: bool = False,
         min_jobscripts: bool = True,
         status: Status | None = None,
+        timeit: bool = False,
     ) -> Submission | None:
         """Add a new submission.
 
@@ -4252,6 +4289,10 @@ class Workflow(AppAware):
             If True (the default), minimise the total number of jobscripts by performing
             as many merges as possible. This may merge otherwise independent jobscripts,
             such that they are run sequentially rather than in parallel.
+        timeit: bool
+            Time run execution function pathways as the code executes and write out a
+            summary to the app-std file. Only functions decorated by `TimeIt.decorator`
+            are included.
         """
         new_idx = self.num_submissions
         _ = self.submissions  # TODO: just to ensure `submissions` is loaded
@@ -4261,15 +4302,22 @@ class Workflow(AppAware):
         with self._store.cache_ctx():
             cache = ObjectCache.build(self, elements=True, iterations=True, runs=True)
 
-        sub_obj: Submission = self._app.Submission(
-            index=new_idx,
-            workflow=self,
-            jobscripts=self.resolve_jobscripts(cache, tasks, force_array, min_jobscripts),
-            JS_parallelism=JS_parallelism,
-        )
-        if status:
-            status.update("Adding new submission: setting environments...")
-        sub_obj._set_environments()
+            # the store cache must remain in use here so `_resolve_singular_jobscripts`
+            # can pre-cache parameter sources for `EAR.get_EAR_dependencies`:
+            sub_obj: Submission = self._app.Submission(
+                index=new_idx,
+                workflow=self,
+                jobscripts=self.resolve_jobscripts(
+                    cache, tasks, force_array, min_jobscripts
+                ),
+                JS_parallelism=JS_parallelism,
+                timeit=timeit,
+            )
+            if status:
+                status.update("Adding new submission: setting environments...")
+            sub_obj._set_environments()
+            run_multi_file_lookup = sub_obj.get_run_multi_file_lookup()
+
         all_EAR_ID = list(sub_obj.all_EAR_IDs)
 
         if not all_EAR_ID:
@@ -4318,10 +4366,13 @@ class Workflow(AppAware):
 
         with self._store.cached_load(), self.batch_update():
             for id_ in all_EAR_ID:
+                file_lookup = run_multi_file_lookup[id_]
                 self._store.set_run_submission_data(
                     EAR_ID=id_,
                     cmds_ID=cmd_file_IDs[id_],
                     sub_idx=new_idx,
+                    run_file_ID=file_lookup[0],
+                    run_file_idx=file_lookup[1],
                 )
 
         sub_obj._ensure_JS_parallelism_set()
@@ -4519,6 +4570,25 @@ class Workflow(AppAware):
 
         return submission_jobscripts, all_element_deps
 
+    @staticmethod
+    def _timeit_run_end(
+        run_ID: int, run_wall_start: float, jobscript_std=None, status: str = "completed"
+    ) -> None:
+        if not TimeIt.active:
+            return
+
+        elapsed = time.perf_counter() - run_wall_start
+        timestamp = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+        print(
+            f"[TIMEIT] run-end {timestamp} "
+            f"run_id={run_ID} "
+            f"status={status} "
+            f"elapsed={elapsed:.3f}s",
+            file=jobscript_std,
+            flush=True,
+        )
+
+    @TimeIt.decorator
     @load_workflow_config
     def execute_run(
         self,
@@ -4526,21 +4596,72 @@ class Workflow(AppAware):
         block_act_key: BlockActionKey,
         run_ID: int,
     ) -> None:
+        """Execute commands of a run via a subprocess, using the parameter metadata
+        cache."""
+        # parameter sources do not change during execution:
+        with self._store.parameters_metadata_cache():
+            return self._execute_run(submission_idx, block_act_key, run_ID)
+
+    @TimeIt.decorator
+    @load_workflow_config
+    def _execute_run(
+        self,
+        submission_idx: int,
+        block_act_key: BlockActionKey,
+        run_ID: int,
+    ) -> None:
         """Execute commands of a run via a subprocess."""
+
+        if TimeIt.active:
+            # write out to stdout:
+            run_wall_start = time.perf_counter()
+            timestamp = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
 
         # CD to submission tmp dir to ensure std streams and exceptions have somewhere
         # sensible to go:
         os.chdir(Submission.get_tmp_path(self.submissions_path, submission_idx))
 
         sub_str_path = Submission.get_app_std_path(self.submissions_path, submission_idx)
-        run_std_path = sub_str_path / f"{str(run_ID)}.txt"  # TODO: refactor
+        run_std_path = ElementActionRun.get_run_app_std_path(sub_str_path, run_ID)
         has_commands = False
+        command_time = None
+        exe = None
+
+        if TimeIt.active and not TimeIt.file_path:
+            TimeIt.file_path = run_std_path
+            TimeIt.file_mode = "a"
+
+        jobscript_std = sys.stdout
+        run_std_preamble = None
 
         # redirect (as much as possible) app-generated stdout/err to a dedicated file:
-        with redirect_std_to_file(run_std_path):
-            with self._store.cached_load():
+        with (
+            redirect_std_to_file(run_std_path) as run_std,
+            TimeIt("execute_run.prepare"),
+            self._store.cached_load(),
+        ):
+            with TimeIt("execute_run.load_run"):
                 js_idx = cast("int", block_act_key[0])
                 run = self.get_EARs_from_IDs([run_ID])[0]
+                run_std_preamble = run.get_run_std_preamble()
+                run_std.preamble = run_std_preamble
+                if TimeIt.active:
+                    TimeIt.file_preamble = run_std_preamble
+                    # write out to stdout:
+                    run_pars = run.parents()
+                    print(
+                        (
+                            f"[TIMEIT] run-start {timestamp} run_id={run_ID} "
+                            f"task={run_pars['task']} "
+                            f"element={run_pars['element']} "
+                            f"iteration={run_pars['iteration']} "
+                            f"loop={run_pars['loop']} "
+                            f"action={run_pars['action']}"
+                        ),
+                        file=jobscript_std,
+                        flush=True,
+                    )
+
                 run_dir = None
                 if run.action.requires_dir:
                     run_dir = run.get_directory()
@@ -4551,13 +4672,13 @@ class Workflow(AppAware):
                     os.chdir(run_dir)
                 self._app.submission_logger.debug(f"{run.skip=}; {run.skip_reason=}")
 
-                if not self.__apply_group_task_conditions(run):
-                    # run was set to skip due to task condition not being met:
-                    run._skip = SkipReason.TASK_CONDITION_NOT_MET.value
+            if not self.__apply_group_task_conditions(run):
+                # run was set to skip due to task condition not being met:
+                run._skip = SkipReason.TASK_CONDITION_NOT_MET.value
 
-                # check if we should skip:
-                if not run.skip:
-
+            # check if we should skip:
+            if not run.skip:
+                with TimeIt("execute_run.write_data_in_files"):
                     try:
                         with run.raise_on_failure_threshold() as unset_params:
                             if run.action.script:
@@ -4584,6 +4705,13 @@ class Workflow(AppAware):
                             run=run,
                             exit_code=1,
                         )
+                        if TimeIt.active:
+                            self._timeit_run_end(
+                                run_ID=run.id_,
+                                run_wall_start=run_wall_start,
+                                status="unset-parameters",
+                                jobscript_std=jobscript_std,
+                            )
                         return
 
                     # sufficient parameter data is set so far, but need to pass `unset_params`
@@ -4602,7 +4730,9 @@ class Workflow(AppAware):
                         # TODO: write Jinja templates in shared submissions directory
                         run.write_jinja_template()
 
-                    if has_commands := bool(cmd_file_path):
+                if has_commands := bool(cmd_file_path):
+
+                    with TimeIt("execute_run.prepare_execution"):
 
                         assert isinstance(cmd_file_path, Path)
                         if not cmd_file_path.is_file():
@@ -4625,6 +4755,7 @@ class Workflow(AppAware):
                         # TODO: make these optionally set (more difficult to set in combine_script,
                         # so have the option to turn off) [default ON]
                         add_env = {
+                            f"{app_caps}_RUN_STD_PATH": str(run_std_path),
                             f"{app_caps}_TASK_IDX": str(run.task.index),
                             f"{app_caps}_TASK_INSERT_ID": str(run.task.insert_ID),
                             f"{app_caps}_RUN_ID": str(run_ID),
@@ -4638,6 +4769,7 @@ class Workflow(AppAware):
                             f"{app_caps}_ELEMENT_ITER_LOOP_IDX": loop_idx_str,
                             f"{app_caps}_RUN_RANDOM_SEED": str(run.resources.random_seed),
                             f"{app_caps}_RUN_RNG_SPAWN_KEY": rng_spawn_key_str,
+                            f"{app_caps}_TIMEIT": str(TimeIt.active),
                         }
 
                         if (num_threads := run.resources.num_threads) is not None:
@@ -4728,26 +4860,41 @@ class Workflow(AppAware):
         # this subprocess may include commands that redirect to the std_stream file (e.g.
         # calling the app to save a parameter from a shell command output):
         if not run.skip and has_commands:
+            assert exe is not None
+            if TimeIt.active:
+                t_cmd_start = time.perf_counter()
             ret_code = exe.run()  # this also shuts down the server
+            if TimeIt.active:
+                command_time = time.perf_counter() - t_cmd_start
 
         # redirect (as much as possible) app-generated stdout/err to a dedicated file:
-        with redirect_std_to_file(run_std_path):
-            if run.skip:
-                ret_code = SKIPPED_EXIT_CODE
-            elif not (has_commands or run.action.jinja_template):
-                ret_code = NO_COMMANDS_EXIT_CODE
-            elif run.action.jinja_template:
-                ret_code = 0
-            else:
-                self._check_loop_termination(run)
+        with redirect_std_to_file(run_std_path, preamble=run_std_preamble):
+            with TimeIt("execute_run.finalise"):
+                if run.skip:
+                    ret_code = SKIPPED_EXIT_CODE
+                elif not (has_commands or run.action.jinja_template):
+                    ret_code = NO_COMMANDS_EXIT_CODE
+                elif run.action.jinja_template:
+                    ret_code = 0
+                else:
+                    self._check_loop_termination(run)
 
-            # set run end:
-            self.set_EAR_end(
-                block_act_key=block_act_key,
-                run=run,
-                exit_code=ret_code,
+                # set run end:
+                self.set_EAR_end(
+                    block_act_key=block_act_key,
+                    run=run,
+                    exit_code=ret_code,
+                )
+
+        if TimeIt.active:
+            self._timeit_run_end(run_ID=run.id_, run_wall_start=run_wall_start)
+            TimeIt.run_command_time = command_time
+            TimeIt.child_orchestration_time = (
+                sum(exe.child_orchestration_times) if exe is not None else 0.0
             )
+            TimeIt.child_work_time = sum(exe.child_work_times) if exe is not None else 0.0
 
+    @TimeIt.decorator
     def _check_loop_termination(self, run: ElementActionRun) -> set[int]:
         """Check if we need to terminate a loop if this is the last action of the loop
         iteration for this element, and set downstream iteration runs to skip."""
@@ -4819,6 +4966,7 @@ class Workflow(AppAware):
         exe.start_zmq_server()  # start the server
         exe.run()  # this also shuts down the server
 
+    @TimeIt.decorator
     def ensure_commands_file(
         self,
         submission_idx: int,
@@ -4856,6 +5004,7 @@ class Workflow(AppAware):
                         jobscript=jobscript,
                         environments=sub.environments,
                         raise_on_unset=True,
+                        timeit=sub.timeit,
                     )
                 except OutputFileParserNoOutputError:
                     # no commands to write, might be used just for saving files
@@ -4863,6 +5012,7 @@ class Workflow(AppAware):
 
         return cmd_file_path
 
+    @TimeIt.decorator
     def process_shell_parameter_output(
         self, name: str, value: str, EAR_ID: int, cmd_idx: int, stderr: bool = False
     ) -> Any:
@@ -4873,6 +5023,7 @@ class Workflow(AppAware):
             command = EAR.action.commands[cmd_idx]
             return command.process_std_stream(name, value, stderr)
 
+    @TimeIt.decorator
     def save_parameter(
         self,
         name: str,
@@ -4959,7 +5110,7 @@ class Workflow(AppAware):
 
     def rechunk_runs(
         self,
-        chunk_size: int | None = None,
+        chunk_size: int | tuple[int, ...] | None = None,
         backup: bool = True,
         status: bool = True,
     ):
@@ -4970,7 +5121,7 @@ class Workflow(AppAware):
 
     def rechunk_parameter_base(
         self,
-        chunk_size: int | None = None,
+        chunk_size: int | tuple[int, ...] | None = None,
         backup: bool = True,
         status: bool = True,
     ):
@@ -4983,7 +5134,7 @@ class Workflow(AppAware):
 
     def rechunk(
         self,
-        chunk_size: int | None = None,
+        chunk_size: int | tuple[int, ...] | None = None,
         backup: bool = True,
         status: bool = True,
     ):

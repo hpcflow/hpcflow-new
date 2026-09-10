@@ -14,6 +14,7 @@ import contextlib
 from collections import defaultdict
 from pathlib import Path
 import re
+import textwrap
 import warnings
 from functools import partial
 from itertools import chain
@@ -61,6 +62,8 @@ from jinja2 import (
     Template as JinjaTemplate,
     meta as jinja_meta,
 )
+
+from hpcflow.sdk.utils.strings import add_import_timing
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Container, Iterable, Iterator, Sequence
@@ -194,6 +197,8 @@ class ElementActionRun(AppAware):
         metadata: dict[str, Any],
         run_hostname: str | None,
         port_number: int | None,
+        run_file_ID: int | None,
+        run_file_idx: int | None,
     ) -> None:
         self._id = id_
         self._is_pending = is_pending
@@ -213,6 +218,8 @@ class ElementActionRun(AppAware):
         self._metadata = metadata
         self._run_hostname = run_hostname
         self._port_number = port_number
+        self._run_file_ID = run_file_ID
+        self._run_file_idx = run_file_idx
 
         # assigned on first access of corresponding properties:
         self._inputs: ElementInputs | None = None
@@ -453,6 +460,32 @@ class ElementActionRun(AppAware):
 
         return EARStatus.pending
 
+    def parents(self) -> dict[str, int | str]:
+        """Get a dict describing the location of the run within the workflow structure."""
+        elem_act = self.element_action
+        return {
+            "task": f"{self.task.insert_ID} ({self.task.unique_name!r})",
+            "element": self.element.index,
+            "iteration": self.element_iteration.index,
+            "loop": str(self.element_iteration.loop_idx),
+            "action": f"{elem_act.action_idx} ({elem_act.action.short_name()!r})",
+        }
+
+    def get_run_std_preamble(self) -> str:
+        """Get the preamble for this run, to be printed as a header to the app-std file
+        on first write."""
+        run_pars = self.parents()
+        return (
+            "Run\n"
+            "===\n"
+            f"Run ID:        {self.id_}\n"
+            f"Task:          {run_pars['task']}\n"
+            f"Element:       {run_pars['element']}\n"
+            f"Iteration:     {run_pars['iteration']}\n"
+            f"Loop index:    {run_pars['loop']}\n"
+            f"Action:        {run_pars['action']}\n\n"
+        )
+
     __RES_RE: ClassVar[Pattern] = re.compile(r"\<\<resource:(\w+)\>\>")
     __ENV_RE: ClassVar[Pattern] = re.compile(
         r"\<\<env:(.*?)\>\>"
@@ -684,24 +717,37 @@ class ElementActionRun(AppAware):
         }
 
     @overload
-    def get_dependent_EARs(self, as_objects: Literal[False] = False) -> set[int]: ...
+    def get_dependent_EARs(
+        self,
+        as_objects: Literal[False] = False,
+        task_insert_ID: int | None = None,
+    ) -> set[int]: ...
 
     @overload
-    def get_dependent_EARs(self, as_objects: Literal[True]) -> list[ElementActionRun]: ...
-
     def get_dependent_EARs(
-        self, as_objects: bool = False
+        self,
+        as_objects: Literal[True],
+        task_insert_ID: int | None = None,
+    ) -> list[ElementActionRun]: ...
+
+    @TimeIt.decorator
+    def get_dependent_EARs(
+        self,
+        as_objects: bool = False,
+        task_insert_ID: int | None = None,
     ) -> list[ElementActionRun] | set[int]:
         """Get downstream EARs that depend on this EAR."""
         deps = {
             run.id_
             for task in self.workflow.tasks[self.task.index :]
+            if task_insert_ID is None or task.insert_ID == task_insert_ID
             for elem in task.elements[:]
             for iter_ in elem.iterations
             for run in iter_.action_runs
             # does EAR dependency belong to self?
             if self._id in run.get_EAR_dependencies()
         }
+
         if as_objects:
             return self.workflow.get_EARs_from_IDs(sorted(deps))
         return deps
@@ -769,9 +815,7 @@ class ElementActionRun(AppAware):
         Get the specification that defines the environment in which this run will execute.
         This will include at least a `name` key.
         """
-        if (envs := self.resources.environments) is None:
-            return {}
-        return envs[self.action.get_environment_name()]
+        return self.element_iteration.get_environment_spec(self.action)
 
     @property
     @TimeIt.decorator
@@ -798,7 +842,17 @@ class ElementActionRun(AppAware):
             self.workflow.submissions_path,
             self.submission_idx,
         )
-        return std_dir / f"{self.id_}.txt"  # TODO: refactor
+        return self.get_run_app_std_path(std_dir, self.id_)
+
+    @staticmethod
+    def get_run_app_std_path(std_dir: Path, run_id: int) -> Path:
+        inner_size = 500
+        outer_size = inner_size**2  # 250,000
+        outer_start = (run_id // outer_size) * outer_size
+        inner_start = (run_id // inner_size) * inner_size
+        outer_dir = f"{outer_start}-{outer_start + outer_size - 1}"
+        inner_dir = f"{inner_start}-{inner_start + inner_size - 1}"
+        return std_dir / outer_dir / inner_dir / f"{run_id}.txt"
 
     @TimeIt.decorator
     def get_resources(self) -> Mapping[str, Any]:
@@ -826,6 +880,7 @@ class ElementActionRun(AppAware):
         """
         return self.env_spec
 
+    @TimeIt.decorator
     def get_environment(self) -> Environment:
         """
         Get the environment in which this run will execute.
@@ -840,6 +895,7 @@ class ElementActionRun(AppAware):
             env_lst = self._app.envs
         return env_lst.get(**self.get_environment_spec())
 
+    @TimeIt.decorator
     def get_all_previous_iteration_runs(
         self, include_self: bool = True
     ) -> list[ElementActionRun]:
@@ -854,6 +910,7 @@ class ElementActionRun(AppAware):
             for iter_i in self_elem.iterations[:max_idx]
         ]
 
+    @TimeIt.decorator
     def get_data_in_values(
         self,
         data_in_keys: Sequence[str] | Mapping[str, Mapping[str, Any]] | None = None,
@@ -1080,22 +1137,28 @@ class ElementActionRun(AppAware):
 
         return kwargs
 
+    @TimeIt.decorator
     def write_script_data_in_files(self, block_act_key: BlockActionKey) -> None:
         """
         Write values to files in standard formats.
         """
         for fmt, ins in self.action.script_data_in_grouped.items():
+            if fmt == "direct":
+                continue
             in_vals = self.get_data_in_values(
                 data_in_keys=ins, label_dict=False, raise_on_unset=False
             )
             if writer := self.__data_in_writer_map.get(fmt):
                 writer(self, in_vals, block_act_key)
 
+    @TimeIt.decorator
     def write_program_data_in_files(self, block_act_key: BlockActionKey) -> None:
         """
         Write values to files in standard formats.
         """
         for fmt, ins in self.action.program_data_in_grouped.items():
+            if fmt == "direct":
+                continue
             in_vals = self.get_data_in_values(
                 data_in_keys=ins, label_dict=False, raise_on_unset=False
             )
@@ -1209,6 +1272,7 @@ class ElementActionRun(AppAware):
         except AttributeError:
             return False
 
+    @TimeIt.decorator
     def get_script_artifact_name(self) -> str:
         """Return the script name that is used when writing the script to the artifacts
         directory within the workflow.
@@ -1264,7 +1328,7 @@ class ElementActionRun(AppAware):
         return ("\n".join(command_lns) + "\n"), shell_vars
 
     @TimeIt.decorator
-    def get_commands_file_hash(self) -> int:
+    def get_commands_file_hash(self, env_spec_hashable: tuple | None = None) -> int:
         """Get a hash that can be used to group together runs that will have the same
         commands file.
 
@@ -1274,7 +1338,7 @@ class ElementActionRun(AppAware):
         return self.action.get_commands_file_hash(
             data_idx=self.get_data_idx(),
             action_idx=self.element_action.action_idx,
-            env_spec_hashable=self.env_spec_hashable,
+            env_spec_hashable=env_spec_hashable or self.env_spec_hashable,
         )
 
     @overload
@@ -1283,6 +1347,7 @@ class ElementActionRun(AppAware):
         jobscript: Jobscript,
         environments: EnvironmentsList,
         raise_on_unset: Literal[True],
+        timeit: bool = False,
     ) -> Path: ...
 
     @overload
@@ -1291,6 +1356,7 @@ class ElementActionRun(AppAware):
         jobscript: Jobscript,
         environments: EnvironmentsList,
         raise_on_unset: Literal[False] = False,
+        timeit: bool = False,
     ) -> Path | None: ...
 
     def try_write_commands(
@@ -1298,6 +1364,7 @@ class ElementActionRun(AppAware):
         jobscript: Jobscript,
         environments: EnvironmentsList,
         raise_on_unset: bool = False,
+        timeit: bool = False,
     ) -> Path | None:
         """Attempt to write the commands file for this run."""
         app_name = self._app.package_name
@@ -1323,6 +1390,7 @@ class ElementActionRun(AppAware):
                     cmd_idx=cmd_idx,
                     stderr=(st_typ == "stderr"),
                     app_name=app_name,
+                    timeit=timeit,
                 )
 
         commands_fmt = jobscript.shell.format_commands_file(app_name, commands)
@@ -2489,6 +2557,12 @@ class Action(JSONLike):
 
         return f"{self.__class__.__name__}({', '.join(out)})"
 
+    def short_name(self):
+        out = self.script or self.jinja_template or self.program
+        if not out:
+            out = self.commands[0].command
+        return textwrap.shorten(out, width=90)
+
     def __eq__(self, other: Any) -> bool:
         # TODO: include program and other script attributes etc
         if not isinstance(other, self.__class__):
@@ -3242,7 +3316,6 @@ class Action(JSONLike):
         """
         return tuple(out_f.label for out_f in self.output_files)
 
-    @TimeIt.decorator
     def generate_data_index(
         self,
         act_idx: int,
@@ -3251,6 +3324,7 @@ class Action(JSONLike):
         all_data_idx: dict[tuple[int, int], DataIndex],
         workflow: Workflow,
         param_source: ParamSource,
+        output_indices: dict[str, int],
     ) -> list[int | list[int]]:
         """Generate the data index for this action of an element iteration whose overall
         data index is passed.
@@ -3312,7 +3386,9 @@ class Action(JSONLike):
                     else:
                         # otherwise we need to allocate a new parameter datum:
                         # (for input/output_files keys)
-                        k_idx = workflow._add_unset_parameter_data(param_source)
+                        param_source_i = copy.deepcopy(param_source)
+                        param_source_i["output_idx"] = output_indices[key]
+                        k_idx = workflow._add_unset_parameter_data(param_source_i)
 
             else:
                 # outputs
@@ -3322,8 +3398,9 @@ class Action(JSONLike):
                         k_idx = prev_data_idx[key]
 
                         # allocate a new parameter datum for this intermediate output:
-                        param_source_i = copy.copy(param_source)
+                        param_source_i = copy.deepcopy(param_source)
                         param_source_i["EAR_ID"] = EAR_ID_i
+                        param_source_i["output_idx"] = output_indices[key]
                         new_k_idx = workflow._add_unset_parameter_data(param_source_i)
 
                         # mutate `all_data_idx`:
@@ -3444,7 +3521,6 @@ class Action(JSONLike):
             for inp_typ in (ofp.inputs or ())
         )
 
-    @TimeIt.decorator
     def test_rules(self, element_iter: ElementIteration) -> tuple[bool, list[int]]:
         """Test all rules against the specified element iteration."""
         if any(not rule.test(element_iteration=element_iter) for rule in self.rules):
@@ -3475,21 +3551,33 @@ class Action(JSONLike):
             # might be used just for saving files:
             return ""
 
+        # add timing instrumentation:
+        script_str = add_import_timing(script_str)
+
         app_caps = self._app.package_name.upper()
         py_imports = dedent(
             """\
+            _user_script_load_time = time.perf_counter() - _script_start - _user_import_time
+
             import argparse
             import os
             from pathlib import Path
 
+            _app_import_start = time.perf_counter()
+
             import {app_module} as app
+            from hpcflow.sdk.log import TimeIt
+
+            _app_import_time = time.perf_counter() - _app_import_start
+
+            TimeIt.active = os.environ.get("{app_caps}_TIMEIT") == "True"
 
             std_path = os.getenv("{app_caps}_RUN_STD_PATH")
             log_path = os.getenv("{app_caps}_RUN_LOG_PATH")
             run_id = int(os.getenv("{app_caps}_RUN_ID"))
             wk_path = os.getenv("{app_caps}_WK_PATH")
 
-            with app.redirect_std_to_file(std_path):
+            with app.redirect_std_to_file(std_path) as run_std:
 
             """
         ).format(app_module=self._app.module, app_caps=app_caps)
@@ -3500,13 +3588,20 @@ class Action(JSONLike):
         # `get_py_script_func_kwargs`)
         py_main_block_workflow_load = dedent(
             """\
-                app.load_config(
-                    overrides={{"log_file_path": Path(log_path)}},
-                    config_dir=r"{cfg_dir}",
-                    config_key=r"{cfg_invoc_key}",
-                )
-                wk = app.Workflow(wk_path)
-                EAR = wk.get_EARs_from_IDs([run_id])[0]
+                with TimeIt("script.load_workflow"):
+                    app.load_config(
+                        overrides={{"log_file_path": Path(log_path)}},
+                        config_dir=r"{cfg_dir}",
+                        config_key=r"{cfg_invoc_key}",
+                    )
+                    wk = app.Workflow(wk_path)
+                with wk._store.cache_ctx():
+                    with TimeIt("script.load_run"):
+                        EAR = wk.get_EARs_from_IDs([run_id])[0]
+                        run_std_preamble = EAR.get_run_std_preamble()
+                        run_std.preamble = run_std_preamble
+                        if TimeIt.active:
+                            TimeIt.file_preamble = run_std_preamble
             """
         ).format(
             cfg_dir=self._app.config.config_directory,
@@ -3519,44 +3614,98 @@ class Action(JSONLike):
 
         func_kwargs_str = dedent(
             """\
-            blk_act_key = (
-                os.environ["{app_caps}_JS_IDX"],
-                os.environ["{app_caps}_BLOCK_IDX"],
-                os.environ["{app_caps}_BLOCK_ACT_IDX"],
-            )
-            with EAR.raise_on_failure_threshold() as unset_params:
-                func_kwargs = EAR.get_py_script_func_kwargs(
-                    raise_on_unset=False,
-                    add_script_files=True,
-                    blk_act_key=blk_act_key,
-                )
+                with TimeIt("script.prepare_inputs"):
+                    blk_act_key = (
+                        os.environ["{app_caps}_JS_IDX"],
+                        os.environ["{app_caps}_BLOCK_IDX"],
+                        os.environ["{app_caps}_BLOCK_ACT_IDX"],
+                    )
+                    with (
+                        EAR.raise_on_failure_threshold() as unset_params,
+                        wk._store.parameters_metadata_cache(),
+                        wk._store.parameters_array_cache(),
+                    ):
+                        func_kwargs = EAR.get_py_script_func_kwargs(
+                            raise_on_unset=False,
+                            add_script_files=True,
+                            blk_act_key=blk_act_key,
+                        )
         """
         ).format(app_caps=app_caps)
 
         script_main_func = Path(script_name).stem
         func_invoke_str = f"{script_main_func}(**func_kwargs)"
         if not self.is_OFP and "direct" in self.script_data_out_grouped:
-            py_main_block_invoke = f"outputs = {func_invoke_str}"
+            py_main_block_invoke = dedent(
+                f"""\
+                with TimeIt("script.user_work"):
+                    _work_start = time.perf_counter()
+                    outputs = {func_invoke_str}
+                    _user_work_time = time.perf_counter() - _work_start
+                """
+            )
             py_main_block_outputs = dedent(
                 """\
-                with app.redirect_std_to_file(std_path):
-                    for name_i, out_i in outputs.items():
-                        wk.set_parameter_value(param_id=EAR.data_idx[f"outputs.{name_i}"], value=out_i)
+                with TimeIt("script.outputs"):
+                    with (
+                        app.redirect_std_to_file(std_path, preamble=run_std_preamble),
+                        wk._store.parameters_metadata_cache(),
+                    ):
+                        for name_i, out_i in outputs.items():
+                            wk.set_parameter_value(param_id=EAR.data_idx[f"outputs.{name_i}"], value=out_i)
                 """
             )
         elif self.is_OFP:
-            py_main_block_invoke = f"output = {func_invoke_str}"
+            py_main_block_invoke = dedent(
+                f"""\
+                with TimeIt("script.user_work"):
+                    _work_start = time.perf_counter()
+                    output = {func_invoke_str}
+                    _user_work_time = time.perf_counter() - _work_start
+                """
+            )
             assert self.output_file_parsers[0].output
             py_main_block_outputs = dedent(
                 """\
-                with app.redirect_std_to_file(std_path):
-                    wk.save_parameter(name="outputs.{output_typ}", value=output, EAR_ID=run_id)
+                with TimeIt("script.outputs"):
+                    with (
+                        app.redirect_std_to_file(std_path, preamble=run_std_preamble),
+                        wk._store.parameters_metadata_cache(),
+                    ):
+                        wk.save_parameter(name="outputs.{output_typ}", value=output, EAR_ID=run_id)
                 """
             ).format(output_typ=self.output_file_parsers[0].output.typ)
         else:
-            py_main_block_invoke = func_invoke_str
+            py_main_block_invoke = dedent(
+                f"""\
+                with TimeIt("script.user_work"):
+                    _work_start = time.perf_counter()
+                    {func_invoke_str}
+                    _user_work_time = time.perf_counter() - _work_start
+                """
+            )
             py_main_block_outputs = ""
 
+        py_main_block_timing = dedent(
+            """\
+            _script_time = time.perf_counter() - _script_start
+            _script_orchestration_time = _script_time - _user_work_time
+
+            app.Executor.send_timeit(
+                hostname="localhost",
+                port_number=int(os.environ["{app_caps}_RUN_PORT"]),
+                orchestration_time=_script_orchestration_time,
+                work_time=_user_work_time,
+            )
+
+            if TimeIt.active:
+                with app.redirect_std_to_file(std_path, preamble=run_std_preamble):
+                    print(f"User import time:          {{_user_import_time:.6f}} s")
+                    print(f"User script load time:     {{_user_script_load_time:.6f}} s")
+                    print(f"App import time:           {{_app_import_time:.6f}} s")                
+                    TimeIt.summarise_string()
+            """
+        ).format(app_caps=app_caps)
         wk_load = (
             "\n" + indent(py_main_block_workflow_load, tab_indent_2)
             if py_main_block_workflow_load
@@ -3569,6 +3718,7 @@ class Action(JSONLike):
             {func_kwargs}
             {invoke}
             {outputs}
+            {timing}
             """
         ).format(
             py_imports=indent(py_imports, tab_indent),
@@ -3576,6 +3726,7 @@ class Action(JSONLike):
             func_kwargs=indent(func_kwargs_str, tab_indent_2),
             invoke=indent(py_main_block_invoke, tab_indent),
             outputs=indent(dedent(py_main_block_outputs), tab_indent),
+            timing=indent(py_main_block_timing, tab_indent),
         )
 
         out = dedent(

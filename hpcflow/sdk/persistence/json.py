@@ -318,12 +318,20 @@ class JSONPersistentStore(
     @contextmanager
     def parameters_metadata_cache(self) -> Iterator[None]:
         """Context manager for using the parameters-metadata cache."""
-        self._use_parameters_metadata_cache = True
-        try:
+        if self._use_parameters_metadata_cache:
             yield
-        finally:
-            self._use_parameters_metadata_cache = False
+        else:
+            self._use_parameters_metadata_cache = True
             self._parameters_file_dat = None  # clear cache data
+            try:
+                yield
+            finally:
+                self._use_parameters_metadata_cache = False
+                self._parameters_file_dat = None  # clear cache data
+
+    @contextmanager
+    def parameters_array_cache(self) -> Iterator[None]:
+        yield
 
     def remove_replaced_dir(self) -> None:
         """
@@ -527,12 +535,22 @@ class JSONPersistentStore(
                 dirs_lst[r_idx] = run_dir_arr[idx].item()
             md["run_dirs"] = dirs_lst
 
-    def _update_EAR_submission_data(self, sub_data: Mapping[int, tuple[int, int | None]]):
+    def _update_EAR_submission_data(
+        self,
+        sub_data: Mapping[int, tuple[int, int | None, int, int]],
+    ):
         with self.using_resource("runs", action="update") as md:
             assert "runs" in md
-            for EAR_ID_i, (sub_idx_i, cmd_file_ID) in sub_data.items():
+            for EAR_ID_i, (
+                sub_idx_i,
+                cmd_file_ID,
+                run_file_ID,
+                run_file_idx,
+            ) in sub_data.items():
                 md["runs"][EAR_ID_i]["submission_idx"] = sub_idx_i
                 md["runs"][EAR_ID_i]["commands_file_ID"] = cmd_file_ID
+                md["runs"][EAR_ID_i]["run_file_ID"] = run_file_ID
+                md["runs"][EAR_ID_i]["run_file_idx"] = run_file_idx
 
     def _update_EAR_start(
         self,
@@ -927,7 +945,7 @@ class JSONPersistentStore(
 
     def rechunk_parameter_base(
         self,
-        chunk_size: int | None = None,
+        chunk_size: int | tuple[int, ...] | None = None,
         backup: bool = True,
         status: bool = True,
     ) -> Any:
@@ -935,7 +953,7 @@ class JSONPersistentStore(
 
     def rechunk_runs(
         self,
-        chunk_size: int | None = None,
+        chunk_size: int | tuple[int, ...] | None = None,
         backup: bool = True,
         status: bool = True,
     ) -> Any:

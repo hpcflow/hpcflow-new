@@ -6,7 +6,9 @@ from __future__ import annotations
 from collections import defaultdict
 import copy
 from dataclasses import dataclass, field
+import functools
 from itertools import chain
+import logging
 from pathlib import Path
 import re
 from typing import NamedTuple, cast, overload, TYPE_CHECKING
@@ -1050,6 +1052,7 @@ class Task(JSONLike):
         }
         return res
 
+    @TimeIt.decorator
     def set_sequence_parameters(self, element_set: ElementSet) -> None:
         """
         Set up parameters parsed by value sequences.
@@ -1115,6 +1118,7 @@ class Task(JSONLike):
         # until we initialise EARs:
         output_data_indices: dict[str, list[int]] = {}
         for schema in self.schemas:
+            output_indices, _ = schema.get_output_indices()
             for output in schema.outputs:
                 # TODO: consider multiple schemas in action index?
 
@@ -1125,9 +1129,7 @@ class Task(JSONLike):
                     workflow._add_unset_parameter_data(
                         {
                             "type": "EAR_output",
-                            # "task_insert_ID": self.insert_ID,
-                            # "element_idx": idx,
-                            # "run_idx": 0,
+                            "output_idx": output_indices[path],
                         }
                     )
                     for idx in range(*local_element_idx_range)
@@ -1135,6 +1137,7 @@ class Task(JSONLike):
 
         return output_data_indices
 
+    @TimeIt.decorator
     def prepare_element_resolution(
         self, element_set: ElementSet, input_data_indices: Mapping[str, Sequence]
     ) -> list[MultiplicityDescriptor]:
@@ -1320,7 +1323,7 @@ class Task(JSONLike):
         """
         The outputs from this task's schemas.
         """
-        return tuple(inp_j for schema_i in self.schemas for inp_j in schema_i.outputs)
+        return tuple(out_j for schema_i in self.schemas for out_j in schema_i.outputs)
 
     @property
     def all_schema_input_types(self) -> set[str]:
@@ -2510,7 +2513,6 @@ class WorkflowTask(AppAware):
         return element_dat_idx
 
     @TimeIt.decorator
-    @TimeIt.decorator
     def initialise_EARs(self, iter_IDs: list[int] | None = None) -> Sequence[int]:
         """Try to initialise any uninitialised EARs of this task."""
         if iter_IDs:
@@ -2526,11 +2528,15 @@ class WorkflowTask(AppAware):
                 # objects.
                 iters.extend(element.iterations)
 
+        # keys are action indices, values are dicts whose keys are outputs/input-/output-
+        # file types and values are output indices:
+        _, output_indices = self.template.schema.get_output_indices()
+
         initialised: list[int] = []
         for iter_i in iters:
             if not iter_i.EARs_initialised:
                 try:
-                    self.__initialise_element_iter_EARs(iter_i)
+                    self.__initialise_element_iter_EARs(iter_i, output_indices)
                     initialised.append(iter_i.id_)
                 except UnsetParameterDataError:
                     # raised by `Action.test_rules`; cannot yet initialise EARs
@@ -2544,7 +2550,9 @@ class WorkflowTask(AppAware):
         return initialised
 
     @TimeIt.decorator
-    def __initialise_element_iter_EARs(self, element_iter: ElementIteration) -> None:
+    def __initialise_element_iter_EARs(
+        self, element_iter: ElementIteration, output_indices: dict[int, dict[str, int]]
+    ) -> None:
         # keys are (act_idx, EAR_idx):
         all_data_idx: dict[tuple[int, int], DataIndex] = {}
         action_runs: dict[tuple[int, int], dict[str, Any]] = {}
@@ -2552,20 +2560,27 @@ class WorkflowTask(AppAware):
         # keys are parameter indices, values are EAR_IDs to update those sources to
         param_src_updates: dict[int, ParamSource] = {}
 
-        count = 0
+        logger = self._app.logger
+        log_info = logger.isEnabledFor(logging.INFO)
+        next_EAR_ID = self.workflow.num_EARs
         for act_idx, action in self.template.all_schema_actions():
-            log_common = (
-                f"for action {act_idx} of element iteration {element_iter.index} of "
-                f"element {element_iter.element.index} of task {self.unique_name!r}."
-            )
             # TODO: when we support adding new runs, we will probably pass additional
             # run-specific data index to `test_rules` and `generate_data_index`
             # (e.g. if we wanted to increase the memory requirements of a action because
             # it previously failed)
             act_valid, cmds_idx = action.test_rules(element_iter=element_iter)
             if act_valid:
-                self._app.logger.info(f"All action rules evaluated to true {log_common}")
-                EAR_ID = self.workflow.num_EARs + count
+                if log_info:
+                    logger.info(
+                        "All action rules evaluated to true for action %s of "
+                        "element iteration %s of element %s of task %r.",
+                        act_idx,
+                        element_iter.index,
+                        element_iter.element.index,
+                        self.unique_name,
+                    )
+                EAR_ID = next_EAR_ID
+                next_EAR_ID += 1
                 param_source: ParamSource = {
                     "type": "EAR_output",
                     "EAR_ID": EAR_ID,
@@ -2578,6 +2593,7 @@ class WorkflowTask(AppAware):
                         all_data_idx=all_data_idx,
                         workflow=self.workflow,
                         param_source=param_source,
+                        output_indices=output_indices[act_idx],
                     )
                 )
                 # with EARs initialised, we can update the pre-allocated schema-level
@@ -2591,10 +2607,15 @@ class WorkflowTask(AppAware):
                     "metadata": {},
                 }
                 action_runs[act_idx, EAR_ID] = run_0
-                count += 1
-            else:
-                self._app.logger.info(
-                    f"Some action rules evaluated to false {log_common}"
+
+            elif log_info:
+                logger.info(
+                    "Some action rules evaluated to false for action %s of "
+                    "element iteration %s of element %s of task %r.",
+                    act_idx,
+                    element_iter.index,
+                    element_iter.element.index,
+                    self.unique_name,
                 )
 
         # `generate_data_index` can modify data index for previous actions, so only assign
@@ -2605,6 +2626,9 @@ class WorkflowTask(AppAware):
                 action_idx=act_idx,
                 commands_idx=run["commands_idx"],
                 data_idx=all_data_idx[act_idx, EAR_ID_i],
+                task_ID=self.insert_ID,
+                element_idx=element_iter.element.index,
+                iteration_idx=element_iter.index,
             )
 
         self.workflow._store.update_param_source(param_src_updates)
@@ -2614,8 +2638,8 @@ class WorkflowTask(AppAware):
         """
         Returns
         -------
-        element_indices : list of int
-            Global indices of newly added elements.
+        element_iteration_indices : list of int
+            Global indices of newly added element iterations
 
         """
 
@@ -2658,23 +2682,31 @@ class WorkflowTask(AppAware):
             src_idx,
         )
 
-        iter_IDs: list[int] = []
-        elem_IDs: list[int] = []
+        seq_idx_all: list[dict[str, int]] = []
+        src_idx_all: list[dict[str, int]] = []
+        schema_params_all: list[list[str]] = []
         for elem_idx, data_idx in enumerate(element_data_idx):
-            schema_params = set(i for i in data_idx if len(i.split(".")) == 2)
-            elem_ID_i = self.workflow._store.add_element(
-                task_ID=self.insert_ID,
-                es_idx=self.num_element_sets - 1,
-                seq_idx={k: v[elem_idx] for k, v in element_seq_idx.items()},
-                src_idx={k: v[elem_idx] for k, v in element_src_idx.items() if v != -1},
+            schema_params_all.append(
+                list(set(i for i in data_idx if len(i.split(".")) == 2))
             )
-            iter_ID_i = self.workflow._store.add_element_iteration(
-                element_ID=elem_ID_i,
-                data_idx=data_idx,
-                schema_parameters=list(schema_params),
+            seq_idx_all.append({k: v[elem_idx] for k, v in element_seq_idx.items()})
+            src_idx_all.append(
+                {k: v[elem_idx] for k, v in element_src_idx.items() if v != -1}
             )
-            iter_IDs.append(iter_ID_i)
-            elem_IDs.append(elem_ID_i)
+
+        elem_IDs = self.workflow._store.add_elements(
+            task_ID=self.insert_ID,
+            es_idx=self.num_element_sets - 1,
+            seq_idx=seq_idx_all,
+            src_idx=src_idx_all,
+        )
+        iter_IDs = self.workflow._store.add_element_iterations(
+            element_IDs=elem_IDs,
+            data_idx_all=element_data_idx,
+            schema_parameters_all=schema_params_all,
+            task_ID=self.insert_ID,
+            index=0,
+        )
 
         self._pending_element_IDs += elem_IDs
         self.initialise_EARs()
@@ -3028,6 +3060,7 @@ class WorkflowTask(AppAware):
             default=default,
         )
 
+    @TimeIt.decorator
     def _paths_to_PV_classes(self, *paths: str | None) -> dict[str, type[ParameterValue]]:
         """Return a dict mapping dot-delimited string input paths to `ParameterValue`
         classes."""
@@ -3084,31 +3117,53 @@ class WorkflowTask(AppAware):
         return params
 
     @staticmethod
-    def _get_relevant_paths(
-        data_index: Mapping[str, Any], path: list[str], children_of: str | None = None
+    @functools.lru_cache(maxsize=1024)
+    def _get_relevant_paths_cached(
+        data_paths: tuple[str, ...],
+        path: tuple[str, ...],
+        children_of: str | None,
     ) -> Mapping[str, RelevantPath]:
         relevant_paths: dict[str, RelevantPath] = {}
-        # first extract out relevant paths in `data_index`:
-        for path_i in data_index:
+
+        path_list = list(path)
+
+        for path_i in data_paths:
             path_i_split = path_i.split(".")
             try:
-                rel_path = get_relative_path(path, path_i_split)
-                relevant_paths[path_i] = {"type": "parent", "relative_path": rel_path}
+                rel_path = get_relative_path(path_list, path_i_split)
+                relevant_paths[path_i] = {
+                    "type": "parent",
+                    "relative_path": rel_path,
+                }
             except ValueError:
                 try:
-                    update_path = get_relative_path(path_i_split, path)
+                    update_path = get_relative_path(path_i_split, path_list)
                     relevant_paths[path_i] = {
                         "type": "update",
                         "update_path": update_path,
                     }
                 except ValueError:
-                    # no intersection between paths
                     if children_of and path_i.startswith(children_of):
                         relevant_paths[path_i] = {"type": "sibling"}
-                    continue
 
         return relevant_paths
 
+    @staticmethod
+    @TimeIt.decorator
+    def _get_relevant_paths(
+        data_index: Mapping[str, Any],
+        path: list[str],
+        children_of: str | None = None,
+    ) -> Mapping[str, RelevantPath]:
+        return dict(
+            WorkflowTask._get_relevant_paths_cached(
+                tuple(data_index),
+                tuple(path),
+                children_of,
+            )
+        )
+
+    @TimeIt.decorator
     def __get_relevant_data_item(
         self,
         path: str | None,
@@ -3158,6 +3213,7 @@ class WorkflowTask(AppAware):
             unset_trackers[path_i].group_size = len_dat_idx
         return data_j, is_set_i, meth_i
 
+    @TimeIt.decorator
     def __get_relevant_data(
         self,
         relevant_data_idx: Mapping[str, list[int] | int],
@@ -3209,6 +3265,7 @@ class WorkflowTask(AppAware):
         return relevant_data
 
     @classmethod
+    @TimeIt.decorator
     def __merge_relevant_data(
         cls,
         relevant_data: Mapping[str, RelevantData],

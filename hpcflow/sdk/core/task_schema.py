@@ -11,12 +11,14 @@ from typing import TYPE_CHECKING, Literal
 from html import escape
 from collections import defaultdict
 
+import numpy as np
 from rich import print as rich_print
 from rich.table import Table
 from rich.panel import Panel
 from rich.markup import escape as rich_esc
 from rich.text import Text
 
+from hpcflow.sdk.log import TimeIt
 from hpcflow.sdk.typing import hydrate
 from hpcflow.sdk.core.enums import ParameterPropagationMode
 from hpcflow.sdk.core.errors import (
@@ -732,6 +734,7 @@ class TaskSchema(JSONLike):
         self.inputs.append(self._app.SchemaInput(parameter=param, group=group_name))
         self._validate()
 
+    @TimeIt.decorator
     def get_action_parameter_flow(self) -> dict[str, dict[str, list[int]]]:
         """
         For each parameter that appears within the actions of this task schema, get the
@@ -830,6 +833,56 @@ class TaskSchema(JSONLike):
         # check action input/outputs
         if self._validate_actions:
             self._validate_action_flow()
+
+    @TimeIt.decorator
+    def get_output_indices(self) -> tuple[dict[str, int], dict[int, dict[str, int]]]:
+        """
+        Get stable indices of schema outputs within their parent action; and those of
+        action outputs, input files, and output files within their parent action. These
+        mappings can be used by the persistent store.
+
+        Note that for output file parser actions where we pass a schema output in, we will
+        end up with a index slot for that output parameter even though it is not actually
+        an output of the action, and so no slot is required."""
+
+        out_indices: defaultdict[int, dict[str, int]] = defaultdict(dict)
+        schema_output_actions: dict[str, int] = {}
+        for param, src_sink in self.get_action_parameter_flow().items():
+            if out_acts := set(src_sink["sources"]) - {-1}:  # -1 indicates schema input
+                for act_idx in out_acts:
+                    out_indices[act_idx][f"outputs.{param}"] = len(out_indices[act_idx])
+            if -1 in src_sink["sinks"]:  # -1 indicates a schema output
+                # find the latest action source, disregarding the schema input if it exists:
+                latest_src = max(set(src_sink["sources"]) - {-1})
+                schema_output_actions[f"outputs.{param}"] = latest_src
+
+        # now add input and output file indices for each action:
+        for act_idx, action in enumerate(self.actions):
+            lst = [
+                *[
+                    f"{prefix}.{typ}"
+                    for prefix in ("input_files", "output_files")
+                    for typ in action.get_parameter_names(prefix)
+                ]
+            ]
+            indices = np.arange(len(lst))
+            if act_idx in out_indices:
+                indices += max(out_indices[act_idx].values(), default=0) + 1
+
+            act_out_idx = dict(zip(lst, indices.tolist()))
+            out_indices[act_idx].update(act_out_idx)
+
+            all_act_out_idx = out_indices[act_idx].values()
+            # check no repeats output indices:
+            assert len(all_act_out_idx) == len(set(all_act_out_idx))
+
+        action_output_indices = dict(sorted(out_indices.items()))
+        schema_output_indices = {
+            param: action_output_indices[act_idx][param]
+            for param, act_idx in schema_output_actions.items()
+        }
+
+        return schema_output_indices, action_output_indices
 
     def __expand_actions(self) -> list[Action]:
         """Create new actions for input file generators and output parsers in existing

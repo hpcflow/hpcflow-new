@@ -14,6 +14,7 @@ import warnings
 from contextlib import contextmanager
 
 
+from hpcflow.sdk.submission.run_file_resolver import RunMetaDataFileResolver
 from hpcflow.sdk.utils.strings import shorten_list_str
 import numpy as np
 
@@ -123,6 +124,7 @@ class Submission(JSONLike):
         at_submit_metadata: dict[str, Any] | None = None,
         JS_parallelism: bool | Literal["direct", "scheduled"] | None = None,
         environments: EnvironmentsList | None = None,
+        timeit: bool = False,
     ):
         self._index = index
         self._jobscripts = jobscripts
@@ -131,6 +133,7 @@ class Submission(JSONLike):
         }
         self._JS_parallelism = JS_parallelism
         self._environments = environments  # assigned by _set_environments
+        self._timeit = timeit
 
         self._submission_parts_lst: list[SubmissionPart] | None = (
             None  # assigned on first access
@@ -180,8 +183,6 @@ class Submission(JSONLike):
             defaultdict(lambda: defaultdict(set))
         )
         with self.workflow.cached_merged_parameters():
-            # using the cache (for `run.env_spec_hashable` -> `run.resources`) should
-            # significantly speed up this loop, unless a large resources sequence is used:
             for js_idx, all_EARs_i in enumerate(self.all_EARs_by_jobscript):
                 for run in all_EARs_i:
                     env_spec_h = run.env_spec_hashable
@@ -241,6 +242,15 @@ class Submission(JSONLike):
         The index of this submission.
         """
         return self._index
+
+    @property
+    def timeit(self) -> bool:
+        """
+        Whether to time run execution function pathways as the code executes and write
+        out a summary to the app-std file. Only functions decorated by `TimeIt.decorator`
+        are included.
+        """
+        return self._timeit
 
     @property
     def environments(self) -> EnvironmentsList:
@@ -793,17 +803,24 @@ class Submission(JSONLike):
                                 environments=self.environments,
                                 jobscript=js,
                                 raise_on_unset=True,
+                                timeit=self.timeit,
                             )
                         run_cmd_file_names[run.id_] = None
 
                     else:
+                        env_spec_h = None
                         if run.is_snippet_script:
+                            env_spec_h = run.env_spec_hashable
                             actions_by_schema[run.action.task_schema.name][
                                 run.element_action.action_idx
-                            ].add(run.env_spec_hashable)
+                            ].add(env_spec_h)
 
                         if run.action.commands:
-                            hash_i = run.get_commands_file_hash()
+                            if env_spec_h is None:
+                                env_spec_h = run.env_spec_hashable
+                            hash_i = run.get_commands_file_hash(
+                                env_spec_hashable=env_spec_h
+                            )
                             # TODO: could further reduce number of files in the case the data
                             # indices hash is the same: if commands objects are the same and
                             # environment objects are the same, then the files will be the
@@ -813,6 +830,7 @@ class Submission(JSONLike):
                                     run.try_write_commands(
                                         environments=self.environments,
                                         jobscript=js,
+                                        timeit=self.timeit,
                                     )
                                 except OutputFileParserNoOutputError:
                                     # no commands to write, might be used just for saving
@@ -1404,3 +1422,9 @@ class Submission(JSONLike):
         self.workflow.list_task_jobscripts(
             sub_idx=self.index, max_js=max_js, task_names=task_names, width=width
         )
+
+    @TimeIt.decorator
+    def get_run_multi_file_lookup(self):
+        resolver = RunMetaDataFileResolver(self.jobscripts)
+        resolver.resolve()
+        return resolver.run_file_lookup
