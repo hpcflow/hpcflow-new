@@ -640,9 +640,10 @@ class ZarrPersistentStore(
         # which chunks are cached:
         self._parameter_sources_cached_chunks: set[int] = set()
 
-        # cache of data array zarr group:
-        # an empty dict means there are no parameter data array groups!
-        self._parameter_data_array_group: dict[int, NDArray] | None = None
+        # cache of data array zarr groups:
+        self._parameter_data_array_group: dict[
+            tuple[str, str, str], dict[str, Group | None] | None
+        ] = {}
 
         super().__init__(app, workflow, path, fs)
 
@@ -662,7 +663,7 @@ class ZarrPersistentStore(
         self._parameter_sources_cached_chunks.clear()
 
     def _reset_parameters_array_cache(self):
-        self._parameter_data_array_group = None
+        self._parameter_data_array_group = {}
 
     @contextmanager
     def parameters_metadata_cache(self) -> Iterator[None]:
@@ -695,29 +696,112 @@ class ZarrPersistentStore(
                 self._use_parameters_array_cache = False
                 self._reset_parameters_array_cache()
 
+    _PARAMETER_ARRAY_INNER_SHARD_SIZE = 500
+
+    def _param_data_arr_grp_names(self, parameter_idx: int) -> tuple[str, str, str, str]:
+        inner_size = self._PARAMETER_ARRAY_INNER_SHARD_SIZE
+        middle_size = self._PARAMETER_ARRAY_INNER_SHARD_SIZE**2
+        outer_size = self._PARAMETER_ARRAY_INNER_SHARD_SIZE**3
+
+        outer_start = (parameter_idx // outer_size) * outer_size
+        middle_start = (parameter_idx // middle_size) * middle_size
+        inner_start = (parameter_idx // inner_size) * inner_size
+
+        return (
+            f"params_{outer_start}-{outer_start + outer_size - 1}",
+            f"params_{middle_start}-{middle_start + middle_size - 1}",
+            f"params_{inner_start}-{inner_start + inner_size - 1}",
+            f"param_{parameter_idx}",
+        )
+
+    def _get_parameter_data_array_outer_group(self, parameter_idx: int) -> Group | None:
+        outer_name, _, _, _ = self._param_data_arr_grp_names(parameter_idx)
+        root = self._get_parameter_user_array_group()
+        if outer_name not in root:
+            return None
+        return root[outer_name]
+
+    def _get_parameter_data_array_mid_group(self, parameter_idx: int) -> Group | None:
+        _, mid_name, _, _ = self._param_data_arr_grp_names(parameter_idx)
+        outer_group = self._get_parameter_data_array_outer_group(parameter_idx)
+        if outer_group is None:
+            return None
+        if mid_name not in outer_group:
+            return None
+        return outer_group[mid_name]
+
+    def _get_parameter_data_array_inner_group(self, parameter_idx: int) -> Group | None:
+        _, _, inner_name, _ = self._param_data_arr_grp_names(parameter_idx)
+        mid_group = self._get_parameter_data_array_mid_group(parameter_idx)
+        if mid_group is None:
+            return None
+        if inner_name not in mid_group:
+            return None
+        return mid_group[inner_name]
+
+    def _get_parameter_data_array_group(self, parameter_idx: int) -> Group | None:
+        _, _, _, param_name = self._param_data_arr_grp_names(parameter_idx)
+        inner_group = self._get_parameter_data_array_inner_group(parameter_idx)
+        if inner_group is None:
+            return None
+        if param_name not in inner_group:
+            return None
+        return inner_group[param_name]
+
     @TimeIt.decorator
     def get_parameter_data_array_group(self, parameter_idx: int) -> Group | None:
-        if self._use_parameters_array_cache:
-            if self._parameter_data_array_group is None:
-                # populate known group names, but lazily open the groups themselves.
-                self._parameter_data_array_group = dict.fromkeys(
-                    self._get_parameter_user_array_group().keys()
-                )
+        if not self._use_parameters_array_cache:
+            return self._get_parameter_data_array_group(parameter_idx)
 
-            key = self._param_data_arr_grp_name(parameter_idx)
-            if key not in self._parameter_data_array_group:
-                # no array group exists for this parameter.
+        outer_name, mid_name, inner_name, parameter_name = self._param_data_arr_grp_names(
+            parameter_idx
+        )
+        shard_key = (outer_name, mid_name, inner_name)
+
+        if shard_key not in self._parameter_data_array_group:
+            # not yet touched
+            inner_group = self._get_parameter_data_array_inner_group(parameter_idx)
+
+            if inner_group is None:
+                self._parameter_data_array_group[shard_key] = None
                 return None
 
-            if self._parameter_data_array_group[key] is None:
-                # populate the cache:
-                self._parameter_data_array_group[key] = (
-                    self._get_parameter_data_array_group(parameter_idx)
-                )
+            # only enumerate this <=500-parameter shard:
+            self._parameter_data_array_group[shard_key] = dict.fromkeys(
+                inner_group.keys()
+            )
 
-            return self._parameter_data_array_group[key]
+        shard_cache = self._parameter_data_array_group[shard_key]
 
-        return self._get_parameter_data_array_group(parameter_idx)
+        if shard_cache is None:
+            return None
+
+        if parameter_name not in shard_cache:
+            return None
+
+        if shard_cache[parameter_name] is None:
+            shard_cache[parameter_name] = self._get_parameter_data_array_group(
+                parameter_idx
+            )
+
+        return shard_cache[parameter_name]
+
+    def _get_or_create_parameter_data_array_inner_group(
+        self,
+        parameter_idx: int,
+        mode: str = "r+",
+    ) -> Group:
+        outer_name, mid_name, inner_name, _ = self._param_data_arr_grp_names(
+            parameter_idx
+        )
+
+        root = self._get_parameter_user_array_group(mode=mode)
+
+        outer_group = root.require_group(outer_name)
+        mid_group = outer_group.require_group(mid_name)
+        inner_group = mid_group.require_group(inner_name)
+
+        return inner_group
 
     def remove_replaced_dir(self) -> None:
         """
@@ -1562,15 +1646,35 @@ class ZarrPersistentStore(
             f"PersistentStore._append_parameters: adding {len(params)} parameters."
         )
 
-        param_encode_root_group = self._get_parameter_user_array_group(mode="r+")
         param_enc: list[dict[str, Any] | int] = []
         src_enc: list[dict] = []
         local_ins_enc: dict[tuple[int, int], Any] = {}
+
+        current_shard_key = None
+        current_inner_group = None
+
         with self.__mutate_attrs(src_arr) as attrs:
+
             for param_i in params:
+
+                parameter_name = None
+                if param_i.is_set:
+                    outer_name, mid_name, inner_name, parameter_name = (
+                        self._param_data_arr_grp_names(param_i.id_)
+                    )
+                    shard_key = (outer_name, mid_name, inner_name)
+                    if shard_key != current_shard_key:
+                        current_inner_group = (
+                            self._get_or_create_parameter_data_array_inner_group(
+                                param_i.id_,
+                                mode="r+",
+                            )
+                        )
+                        current_shard_key = shard_key
+
                 dat_i = param_i.encode(
-                    root_group=param_encode_root_group,
-                    arr_path=self._param_data_arr_grp_name(param_i.id_),
+                    root_group=current_inner_group if param_i.is_set else None,
+                    arr_path=parameter_name,
                 )
                 param_enc.append(dat_i)
 
@@ -1604,8 +1708,12 @@ class ZarrPersistentStore(
         param_ids = list(set_parameters)
         # the `decode` call in `_get_persistent_parameters` should be quick:
         params = self._get_persistent_parameters(param_ids)
-        param_encode_root_group = self._get_parameter_user_array_group(mode="r+")
+
         param_updates = defaultdict(list)
+
+        current_shard_key = None
+        current_inner_group = None
+
         for param_id, (value, is_file) in set_parameters.items():
             param_i = params[param_id]
             if is_file:
@@ -1614,19 +1722,31 @@ class ZarrPersistentStore(
                 param_i = param_i.set_data(value)
 
             src_type = param_i.source["type"]
-            if src_type == "EAR_output":
-                src_run_ID = param_i.source["EAR_ID"]
-                param_updates[src_run_ID].append(
-                    (
-                        param_i.source["output_idx"],
-                        param_i.encode(
-                            root_group=param_encode_root_group,
-                            arr_path=self._param_data_arr_grp_name(param_i.id_),
-                        ),
+            if src_type != "EAR_output":
+                raise RuntimeError("Expected run-output parameters only!")
+
+            outer_name, mid_name, inner_name, parameter_name = (
+                self._param_data_arr_grp_names(param_i.id_)
+            )
+            shard_key = (outer_name, mid_name, inner_name)
+            if shard_key != current_shard_key:
+                current_inner_group = (
+                    self._get_or_create_parameter_data_array_inner_group(
+                        param_i.id_,
+                        mode="r+",
                     )
                 )
-            else:
-                raise RuntimeError("Expected run-output parameters only!")
+                current_shard_key = shard_key
+
+            src_run_ID = param_i.source["EAR_ID"]
+            param_updates[src_run_ID].append(
+                (
+                    param_i.source["output_idx"],
+                    param_i.encode(
+                        root_group=current_inner_group, arr_path=parameter_name
+                    ),
+                )
+            )
 
         # sub idx -> file_ID -> run_ID -> file index
         # file zero is for local inputs, hence the offset from the run metadata file IDs:
@@ -1793,16 +1913,6 @@ class ZarrPersistentStore(
     @TimeIt.decorator
     def _get_parameter_user_array_group(self, mode: str = "r") -> Group:
         return self._get_parameter_group(mode=mode).get(self._param_user_arr_grp_name)
-
-    @TimeIt.decorator
-    def _get_parameter_data_array_group(
-        self,
-        parameter_idx: int,
-        mode: str = "r",
-    ) -> Group:
-        return self._get_parameter_user_array_group(mode=mode).get(
-            self._param_data_arr_grp_name(parameter_idx)
-        )
 
     def _get_array_group_and_dataset(
         self, mode: str, param_id: int, data_path: list[int]

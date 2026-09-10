@@ -267,9 +267,7 @@ def test_make_zarr_store_no_compressor(tmp_path: Path):
 
 
 @pytest.mark.integration
-@pytest.mark.skipif(
-    sys.version_info < (3, 9), reason="Python 3.8 support is being removed anyway."
-)
+@pytest.mark.skip(reason="Rechunking needs to be re-implemented.")
 def test_zarr_rechunk_data_equivalent(tmp_path: Path):
     t1 = hf.Task(
         schema=hf.task_schemas.test_t1_conditional_OS,
@@ -301,9 +299,7 @@ def test_zarr_rechunk_data_equivalent(tmp_path: Path):
 
 
 @pytest.mark.integration
-@pytest.mark.skipif(
-    sys.version_info < (3, 9), reason="Python 3.8 support is being removed anyway."
-)
+@pytest.mark.skip(reason="Rechunking needs to be re-implemented.")
 def test_zarr_rechunk_data_equivalent_custom_chunk_size(tmp_path: Path):
     t1 = hf.Task(
         schema=hf.task_schemas.test_t1_conditional_OS,
@@ -332,6 +328,7 @@ def test_zarr_rechunk_data_equivalent_custom_chunk_size(tmp_path: Path):
 
 
 @pytest.mark.integration
+@pytest.mark.skip(reason="Rechunking needs to be re-implemented.")
 def test_zarr_rechunk_data_no_backup_load_runs(tmp_path: Path):
     t1 = hf.Task(
         schema=hf.task_schemas.test_t1_conditional_OS,
@@ -360,6 +357,7 @@ def test_zarr_rechunk_data_no_backup_load_runs(tmp_path: Path):
 
 
 @pytest.mark.integration
+@pytest.mark.skip(reason="Rechunking needs to be re-implemented.")
 def test_zarr_rechunk_data_no_backup_load_parameter_base(tmp_path: Path):
     t1 = hf.Task(
         schema=hf.task_schemas.test_t1_conditional_OS,

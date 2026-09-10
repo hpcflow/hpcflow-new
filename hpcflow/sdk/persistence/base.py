@@ -3007,6 +3007,7 @@ class PersistentStore(
 
         return _delete_no_confirm()
 
+    @TimeIt.decorator
     def get_binary_file(self, path: str | Path) -> bytes:
         """Retrieve the contents of a binary file stored within the workflow.
 

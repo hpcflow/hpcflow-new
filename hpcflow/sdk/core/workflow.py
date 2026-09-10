@@ -1193,9 +1193,11 @@ class Workflow(AppAware):
                 ts_name_fmt=ts_name_fmt,
                 store_kwargs=store_kwargs,
             )
-            with wk._store.cached_load(), wk.batch_update(
-                is_workflow_creation=True
-            ), wk._store.cache_ctx():
+            with (
+                wk._store.cached_load(),
+                wk.batch_update(is_workflow_creation=True),
+                wk._store.cache_ctx(),
+            ):
                 for idx, task in enumerate(template.tasks):
                     if status:
                         status.update(
@@ -3094,10 +3096,8 @@ class Workflow(AppAware):
         new_skips: dict[int, int] = {}
         for not_met_task_ID in conditions_not_met:
             dep_skips = {
-                dep.id_: SkipReason.TASK_CONDITION_NOT_MET
-                for dep in run.get_dependent_EARs(
-                    as_objects=True, task_insert_ID=not_met_task_ID
-                )
+                dep_id: SkipReason.TASK_CONDITION_NOT_MET
+                for dep_id in run.get_dependent_EARs(task_insert_ID=not_met_task_ID)
             }
             self.set_EAR_skip(dep_skips)
             new_skips.update({k: v.value for k, v in dep_skips.items()})
@@ -4589,6 +4589,7 @@ class Workflow(AppAware):
         )
 
     @TimeIt.decorator
+    @load_workflow_config
     def execute_run(
         self,
         submission_idx: int,
@@ -4615,7 +4616,6 @@ class Workflow(AppAware):
             # write out to stdout:
             run_wall_start = time.perf_counter()
             timestamp = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
-            print(f"[TIMEIT] run-start {timestamp} run_id={run_ID}", flush=True)
 
         # CD to submission tmp dir to ensure std streams and exceptions have somewhere
         # sensible to go:
@@ -4635,257 +4635,227 @@ class Workflow(AppAware):
         run_std_preamble = None
 
         # redirect (as much as possible) app-generated stdout/err to a dedicated file:
-        with redirect_std_to_file(run_std_path) as run_std:
-            with TimeIt("execute_run.prepare"):
-                with self._store.cached_load():
-                    with TimeIt("execute_run.load_run"):
-                        js_idx = cast("int", block_act_key[0])
-                        run = self.get_EARs_from_IDs([run_ID])[0]
-                        run_std_preamble = run.get_run_std_preamble()
-                        run_std.preamble = run_std_preamble
-                        if TimeIt.active:
-                            TimeIt.file_preamble = run_std_preamble
-                            # write out to stdout:
-                            timestamp = datetime.now(timezone.utc).isoformat(
-                                timespec="milliseconds"
-                            )
-                            run_pars = run.parents()
-                            print(
-                                (
-                                    f"[TIMEIT] run-parent "
-                                    f"{timestamp} run_id={run_ID} "
-                                    f"task={run_pars['task']} "
-                                    f"element={run_pars['element']} "
-                                    f"iteration={run_pars['iteration']} "
-                                    f"loop={run_pars['loop']} "
-                                    f"action={run_pars['action']}"
-                                ),
-                                file=jobscript_std,
-                                flush=True,
+        with (
+            redirect_std_to_file(run_std_path) as run_std,
+            TimeIt("execute_run.prepare"),
+            self._store.cached_load(),
+        ):
+            with TimeIt("execute_run.load_run"):
+                js_idx = cast("int", block_act_key[0])
+                run = self.get_EARs_from_IDs([run_ID])[0]
+                run_std_preamble = run.get_run_std_preamble()
+                run_std.preamble = run_std_preamble
+                if TimeIt.active:
+                    TimeIt.file_preamble = run_std_preamble
+                    # write out to stdout:
+                    run_pars = run.parents()
+                    print(
+                        (
+                            f"[TIMEIT] run-start {timestamp} run_id={run_ID} "
+                            f"task={run_pars['task']} "
+                            f"element={run_pars['element']} "
+                            f"iteration={run_pars['iteration']} "
+                            f"loop={run_pars['loop']} "
+                            f"action={run_pars['action']}"
+                        ),
+                        file=jobscript_std,
+                        flush=True,
+                    )
+
+                run_dir = None
+                if run.action.requires_dir:
+                    run_dir = run.get_directory()
+                    assert run_dir
+                    self._app.submission_logger.debug(
+                        f"changing directory to run execution directory: {run_dir}."
+                    )
+                    os.chdir(run_dir)
+                self._app.submission_logger.debug(f"{run.skip=}; {run.skip_reason=}")
+
+            if not self.__apply_group_task_conditions(run):
+                # run was set to skip due to task condition not being met:
+                run._skip = SkipReason.TASK_CONDITION_NOT_MET.value
+
+            # check if we should skip:
+            if not run.skip:
+                with TimeIt("execute_run.write_data_in_files"):
+                    try:
+                        with run.raise_on_failure_threshold() as unset_params:
+                            if run.action.script:
+                                run.write_script_data_in_files(block_act_key)
+                            if run.action.has_program:
+                                run.write_program_data_in_files(block_act_key)
+
+                            # write the command file that will be executed:
+                            cmd_file_path = self.ensure_commands_file(
+                                submission_idx, js_idx, run
                             )
 
-                        run_dir = None
-                        if run.action.requires_dir:
-                            run_dir = run.get_directory()
-                            assert run_dir
-                            self._app.submission_logger.debug(
-                                f"changing directory to run execution directory: {run_dir}."
-                            )
-                            os.chdir(run_dir)
+                    except UnsetParameterDataErrorBase:
+                        # not all required parameter data is set, so fail this run:
                         self._app.submission_logger.debug(
-                            f"{run.skip=}; {run.skip_reason=}"
+                            f"unset parameter threshold satisfied (or any unset "
+                            f"parameters found when trying to write commands file), so "
+                            f"not attempting run. unset_params={unset_params!r}."
+                        )
+                        self.set_EAR_start(run_ID, run_dir, port_number=None)
+                        self._check_loop_termination(run)  # not sure if this is required
+                        self.set_EAR_end(
+                            block_act_key=block_act_key,
+                            run=run,
+                            exit_code=1,
+                        )
+                        if TimeIt.active:
+                            self._timeit_run_end(
+                                run_ID=run.id_,
+                                run_wall_start=run_wall_start,
+                                status="unset-parameters",
+                                jobscript_std=jobscript_std,
+                            )
+                        return
+
+                    # sufficient parameter data is set so far, but need to pass `unset_params`
+                    # on as an environment variable so it can be appended to and failure
+                    # thresholds can be rechecked if necessary (i.e. in a Python script
+                    # where we also load input parameters "directly")
+                    if unset_params:
+                        self._app.submission_logger.debug(
+                            f"some unset parameters found, but no unset-thresholds met: "
+                            f"unset_params={unset_params!r}."
                         )
 
-                    if not self.__apply_group_task_conditions(run):
-                        # run was set to skip due to task condition not being met:
-                        run._skip = SkipReason.TASK_CONDITION_NOT_MET.value
+                    # TODO: pass on unset_params to script as environment variable
 
-                    # check if we should skip:
-                    if not run.skip:
-                        with TimeIt("execute_run.write_data_in_files"):
-                            try:
-                                with run.raise_on_failure_threshold() as unset_params:
-                                    if run.action.script:
-                                        run.write_script_data_in_files(block_act_key)
-                                    if run.action.has_program:
-                                        run.write_program_data_in_files(block_act_key)
+                    if run.action.jinja_template_or_template_path:
+                        # TODO: write Jinja templates in shared submissions directory
+                        run.write_jinja_template()
 
-                                    # write the command file that will be executed:
-                                    cmd_file_path = self.ensure_commands_file(
-                                        submission_idx, js_idx, run
-                                    )
+                if has_commands := bool(cmd_file_path):
 
-                            except UnsetParameterDataErrorBase:
-                                # not all required parameter data is set, so fail this run:
-                                self._app.submission_logger.debug(
-                                    f"unset parameter threshold satisfied (or any unset "
-                                    f"parameters found when trying to write commands file), so "
-                                    f"not attempting run. unset_params={unset_params!r}."
+                    with TimeIt("execute_run.prepare_execution"):
+
+                        assert isinstance(cmd_file_path, Path)
+                        if not cmd_file_path.is_file():
+                            raise RuntimeError(
+                                f"Command file {cmd_file_path!r} does not exist."
+                            )
+                        # prepare subprocess command:
+                        jobscript = self.submissions[submission_idx].jobscripts[js_idx]
+                        cmd = jobscript.shell.get_command_file_launch_command(
+                            str(cmd_file_path)
+                        )
+                        loop_idx_str = ";".join(
+                            f"{k}={v}" for k, v in run.element_iteration.loop_idx.items()
+                        )
+                        rng_spawn_key_str = ",".join(
+                            str(key_i) for key_i in run.resources.rng_spawn_key or []
+                        )
+                        app_caps = self._app.package_name.upper()
+
+                        # TODO: make these optionally set (more difficult to set in combine_script,
+                        # so have the option to turn off) [default ON]
+                        add_env = {
+                            f"{app_caps}_RUN_STD_PATH": str(run_std_path),
+                            f"{app_caps}_TASK_IDX": str(run.task.index),
+                            f"{app_caps}_TASK_INSERT_ID": str(run.task.insert_ID),
+                            f"{app_caps}_RUN_ID": str(run_ID),
+                            f"{app_caps}_RUN_IDX": str(run.index),
+                            f"{app_caps}_ELEMENT_IDX": str(run.element.index),
+                            f"{app_caps}_ELEMENT_ID": str(run.element.id_),
+                            f"{app_caps}_ELEMENT_ITER_IDX": str(
+                                run.element_iteration.index
+                            ),
+                            f"{app_caps}_ELEMENT_ITER_ID": str(run.element_iteration.id_),
+                            f"{app_caps}_ELEMENT_ITER_LOOP_IDX": loop_idx_str,
+                            f"{app_caps}_RUN_RANDOM_SEED": str(run.resources.random_seed),
+                            f"{app_caps}_RUN_RNG_SPAWN_KEY": rng_spawn_key_str,
+                            f"{app_caps}_TIMEIT": str(TimeIt.active),
+                        }
+
+                        if (num_threads := run.resources.num_threads) is not None:
+                            add_env[f"{app_caps}_RUN_NUM_THREADS"] = str(num_threads)
+
+                        if (num_cores := run.resources.num_cores) is not None:
+                            add_env[f"{app_caps}_RUN_NUM_CORES"] = str(num_cores)
+
+                        if (num_MPI_ranks := run.resources.num_MPI_ranks) is not None:
+                            add_env[f"{app_caps}_RUN_NUM_MPI_RANKS"] = str(num_MPI_ranks)
+
+                        if run.action.script:
+                            if run.is_snippet_script:
+                                script_artifact_name = run.get_script_artifact_name()
+                                script_dir = Path(
+                                    os.environ[f"{app_caps}_SUB_SCRIPTS_DIR"]
                                 )
-                                self.set_EAR_start(run_ID, run_dir, port_number=None)
-                                self._check_loop_termination(
-                                    run
-                                )  # not sure if this is required
-                                self.set_EAR_end(
-                                    block_act_key=block_act_key,
-                                    run=run,
-                                    exit_code=1,
-                                )
-                                if TimeIt.active:
-                                    self._timeit_run_end(
-                                        run_ID=run.id_,
-                                        run_wall_start=run_wall_start,
-                                        status="unset-parameters",
-                                        jobscript_std=jobscript_std,
-                                    )
-                                return
-
-                            # sufficient parameter data is set so far, but need to pass `unset_params`
-                            # on as an environment variable so it can be appended to and failure
-                            # thresholds can be rechecked if necessary (i.e. in a Python script
-                            # where we also load input parameters "directly")
-                            if unset_params:
-                                self._app.submission_logger.debug(
-                                    f"some unset parameters found, but no unset-thresholds met: "
-                                    f"unset_params={unset_params!r}."
-                                )
-
-                            # TODO: pass on unset_params to script as environment variable
-
-                            if run.action.jinja_template_or_template_path:
-                                # TODO: write Jinja templates in shared submissions directory
-                                run.write_jinja_template()
-
-                        if has_commands := bool(cmd_file_path):
-
-                            with TimeIt("execute_run.prepare_execution"):
-
-                                assert isinstance(cmd_file_path, Path)
-                                if not cmd_file_path.is_file():
-                                    raise RuntimeError(
-                                        f"Command file {cmd_file_path!r} does not exist."
-                                    )
-                                # prepare subprocess command:
-                                jobscript = self.submissions[submission_idx].jobscripts[
-                                    js_idx
-                                ]
-                                cmd = jobscript.shell.get_command_file_launch_command(
-                                    str(cmd_file_path)
-                                )
-                                loop_idx_str = ";".join(
-                                    f"{k}={v}"
-                                    for k, v in run.element_iteration.loop_idx.items()
-                                )
-                                rng_spawn_key_str = ",".join(
-                                    str(key_i)
-                                    for key_i in run.resources.rng_spawn_key or []
-                                )
-                                app_caps = self._app.package_name.upper()
-
-                                # TODO: make these optionally set (more difficult to set in combine_script,
-                                # so have the option to turn off) [default ON]
-                                add_env = {
-                                    f"{app_caps}_RUN_STD_PATH": str(run_std_path),
-                                    f"{app_caps}_TASK_IDX": str(run.task.index),
-                                    f"{app_caps}_TASK_INSERT_ID": str(run.task.insert_ID),
-                                    f"{app_caps}_RUN_ID": str(run_ID),
-                                    f"{app_caps}_RUN_IDX": str(run.index),
-                                    f"{app_caps}_ELEMENT_IDX": str(run.element.index),
-                                    f"{app_caps}_ELEMENT_ID": str(run.element.id_),
-                                    f"{app_caps}_ELEMENT_ITER_IDX": str(
-                                        run.element_iteration.index
+                                script_name = script_artifact_name
+                            else:
+                                # not a snippet script; expect the script in the run execute
+                                # directory (i.e. created by a previous action)
+                                script_dir = Path.cwd()
+                                script_name = run.action.script
+                            script_name_no_ext = Path(script_name).stem
+                            add_env.update(
+                                {
+                                    f"{app_caps}_RUN_SCRIPT_NAME": script_name,
+                                    f"{app_caps}_RUN_SCRIPT_NAME_NO_EXT": script_name_no_ext,
+                                    f"{app_caps}_RUN_SCRIPT_DIR": str(script_dir),
+                                    f"{app_caps}_RUN_SCRIPT_PATH": str(
+                                        script_dir / script_name
                                     ),
-                                    f"{app_caps}_ELEMENT_ITER_ID": str(
-                                        run.element_iteration.id_
-                                    ),
-                                    f"{app_caps}_ELEMENT_ITER_LOOP_IDX": loop_idx_str,
-                                    f"{app_caps}_RUN_RANDOM_SEED": str(
-                                        run.resources.random_seed
-                                    ),
-                                    f"{app_caps}_RUN_RNG_SPAWN_KEY": rng_spawn_key_str,
-                                    f"{app_caps}_TIMEIT": str(TimeIt.active),
                                 }
-
-                                if (num_threads := run.resources.num_threads) is not None:
-                                    add_env[f"{app_caps}_RUN_NUM_THREADS"] = str(
-                                        num_threads
-                                    )
-
-                                if (num_cores := run.resources.num_cores) is not None:
-                                    add_env[f"{app_caps}_RUN_NUM_CORES"] = str(num_cores)
-
-                                if (
-                                    num_MPI_ranks := run.resources.num_MPI_ranks
-                                ) is not None:
-                                    add_env[f"{app_caps}_RUN_NUM_MPI_RANKS"] = str(
-                                        num_MPI_ranks
-                                    )
-
-                                if run.action.script:
-                                    if run.is_snippet_script:
-                                        script_artifact_name = (
-                                            run.get_script_artifact_name()
-                                        )
-                                        script_dir = Path(
-                                            os.environ[f"{app_caps}_SUB_SCRIPTS_DIR"]
-                                        )
-                                        script_name = script_artifact_name
-                                    else:
-                                        # not a snippet script; expect the script in the run execute
-                                        # directory (i.e. created by a previous action)
-                                        script_dir = Path.cwd()
-                                        script_name = run.action.script
-                                    script_name_no_ext = Path(script_name).stem
-                                    add_env.update(
-                                        {
-                                            f"{app_caps}_RUN_SCRIPT_NAME": script_name,
-                                            f"{app_caps}_RUN_SCRIPT_NAME_NO_EXT": script_name_no_ext,
-                                            f"{app_caps}_RUN_SCRIPT_DIR": str(script_dir),
-                                            f"{app_caps}_RUN_SCRIPT_PATH": str(
-                                                script_dir / script_name
-                                            ),
-                                        }
-                                    )
-                                try:
-                                    if program_path := run.program_path_actual:
-                                        program_dir = program_path.parent
-                                        program_name = program_path.name
-                                        program_name_no_ext = program_path.stem
-                                        add_env.update(
-                                            {
-                                                f"{app_caps}_RUN_PROGRAM_NAME": program_name,
-                                                f"{app_caps}_RUN_PROGRAM_NAME_NO_EXT": program_name_no_ext,
-                                                f"{app_caps}_RUN_PROGRAM_DIR": str(
-                                                    program_dir
-                                                ),
-                                                f"{app_caps}_RUN_PROGRAM_PATH": str(
-                                                    program_path
-                                                ),
-                                            }
-                                        )
-                                except ValueError:
-                                    # set run end:
-                                    self.set_EAR_end(
-                                        block_act_key=block_act_key,
-                                        run=run,
-                                        exit_code=NO_PROGRAM_EXIT_CODE,
-                                    )
-                                    raise
-
-                                env = {**dict(os.environ), **add_env}
-
-                                self._app.submission_logger.debug(
-                                    f"Executing run commands via subprocess with command {cmd!r}, and "
-                                    f"environment variables as below."
+                            )
+                        try:
+                            if program_path := run.program_path_actual:
+                                program_dir = program_path.parent
+                                program_name = program_path.name
+                                program_name_no_ext = program_path.stem
+                                add_env.update(
+                                    {
+                                        f"{app_caps}_RUN_PROGRAM_NAME": program_name,
+                                        f"{app_caps}_RUN_PROGRAM_NAME_NO_EXT": program_name_no_ext,
+                                        f"{app_caps}_RUN_PROGRAM_DIR": str(program_dir),
+                                        f"{app_caps}_RUN_PROGRAM_PATH": str(program_path),
+                                    }
                                 )
-                                for k, v in env.items():
-                                    if k.startswith(app_caps):
-                                        self._app.submission_logger.debug(f"{k} = {v!r}")
+                        except ValueError:
+                            # set run end:
+                            self.set_EAR_end(
+                                block_act_key=block_act_key,
+                                run=run,
+                                exit_code=NO_PROGRAM_EXIT_CODE,
+                            )
+                            raise
 
-                                self._app.submission_logger.debug(
-                                    "The following secrets are available:"
-                                )
-                                secrets_env = {}
-                                for secret_key in run.get_environment().secrets:
-                                    self._app.submission_logger.debug(secret_key)
-                                    secrets_env[secret_key] = self._app.get_secret(
-                                        secret_key
-                                    )
-                                env.update(secrets_env)
+                        env = {**dict(os.environ), **add_env}
 
-                                exe = self._app.Executor(cmd, env, self._app.package_name)
-                                port = (
-                                    exe.start_zmq_server()
-                                )  # start the server so we know the port
+                        self._app.submission_logger.debug(
+                            f"Executing run commands via subprocess with command {cmd!r}, and "
+                            f"environment variables as below."
+                        )
+                        for k, v in env.items():
+                            if k.startswith(app_caps):
+                                self._app.submission_logger.debug(f"{k} = {v!r}")
 
-                                try:
-                                    self.set_EAR_start(run_ID, run_dir, port)
-                                except:
-                                    self._app.submission_logger.error(
-                                        f"Failed to set run start."
-                                    )
-                                    exe.stop_zmq_server()
-                                    raise
+                        self._app.submission_logger.debug(
+                            "The following secrets are available:"
+                        )
+                        secrets_env = {}
+                        for secret_key in run.get_environment().secrets:
+                            self._app.submission_logger.debug(secret_key)
+                            secrets_env[secret_key] = self._app.get_secret(secret_key)
+                        env.update(secrets_env)
+
+                        exe = self._app.Executor(cmd, env, self._app.package_name)
+                        port = (
+                            exe.start_zmq_server()
+                        )  # start the server so we know the port
+
+                        try:
+                            self.set_EAR_start(run_ID, run_dir, port)
+                        except:
+                            self._app.submission_logger.error(f"Failed to set run start.")
+                            exe.stop_zmq_server()
+                            raise
 
         # this subprocess may include commands that redirect to the std_stream file (e.g.
         # calling the app to save a parameter from a shell command output):
