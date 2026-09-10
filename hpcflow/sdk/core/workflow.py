@@ -3095,8 +3095,9 @@ class Workflow(AppAware):
         for not_met_task_ID in conditions_not_met:
             dep_skips = {
                 dep.id_: SkipReason.TASK_CONDITION_NOT_MET
-                for dep in run.get_dependent_EARs(as_objects=True)
-                if dep.task.insert_ID == not_met_task_ID
+                for dep in run.get_dependent_EARs(
+                    as_objects=True, task_insert_ID=not_met_task_ID
+                )
             }
             self.set_EAR_skip(dep_skips)
             new_skips.update({k: v.value for k, v in dep_skips.items()})

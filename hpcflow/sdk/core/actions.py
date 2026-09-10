@@ -717,24 +717,37 @@ class ElementActionRun(AppAware):
         }
 
     @overload
-    def get_dependent_EARs(self, as_objects: Literal[False] = False) -> set[int]: ...
+    def get_dependent_EARs(
+        self,
+        as_objects: Literal[False] = False,
+        task_insert_ID: int | None = None,
+    ) -> set[int]: ...
 
     @overload
-    def get_dependent_EARs(self, as_objects: Literal[True]) -> list[ElementActionRun]: ...
-
     def get_dependent_EARs(
-        self, as_objects: bool = False
+        self,
+        as_objects: Literal[True],
+        task_insert_ID: int | None = None,
+    ) -> list[ElementActionRun]: ...
+
+    @TimeIt.decorator
+    def get_dependent_EARs(
+        self,
+        as_objects: bool = False,
+        task_insert_ID: int | None = None,
     ) -> list[ElementActionRun] | set[int]:
         """Get downstream EARs that depend on this EAR."""
         deps = {
             run.id_
             for task in self.workflow.tasks[self.task.index :]
+            if task_insert_ID is None or task.insert_ID == task_insert_ID
             for elem in task.elements[:]
             for iter_ in elem.iterations
             for run in iter_.action_runs
             # does EAR dependency belong to self?
             if self._id in run.get_EAR_dependencies()
         }
+
         if as_objects:
             return self.workflow.get_EARs_from_IDs(sorted(deps))
         return deps
