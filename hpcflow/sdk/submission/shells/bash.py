@@ -108,11 +108,17 @@ class Bash(Shell):
     #: Template for disabling writing of the app log.
     JS_RUN_LOG_PATH_DISABLE: ClassVar[str] = '" "'
     #: Template for the run execution command.
-    JS_RUN_CMD: ClassVar[str] = (
-        "export {app_caps}_APP_LAUNCH_START=\"$(date -u '+%Y-%m-%dT%H:%M:%S.%6NZ')\"\n"
-        '{workflow_app_alias} {timeit}internal workflow "$WK_PATH_ARG" execute-run '
-        "$SUB_IDX $JS_IDX $block_idx $block_act_idx $EAR_ID\n"
+    JS_RUN_CMD: ClassVar[str] = dedent(
+        """\
+        if [[ "$(uname)" == "Darwin" ]]; then
+            export {app_caps}_APP_LAUNCH_START="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+        else
+            export {app_caps}_APP_LAUNCH_START="$(date -u '+%Y-%m-%dT%H:%M:%S.%6NZ')"
+        fi
+        {workflow_app_alias} {timeit}internal workflow "$WK_PATH_ARG" execute-run $SUB_IDX $JS_IDX $block_idx $block_act_idx $EAR_ID
+    """
     )
+
     #: Template for the execution command for multiple combined runs.
     JS_RUN_CMD_COMBINED: ClassVar[str] = (
         '{workflow_app_alias} internal workflow "$WK_PATH_ARG" execute-combined-runs '
