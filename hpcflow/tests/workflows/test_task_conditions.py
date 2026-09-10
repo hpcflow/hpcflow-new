@@ -378,7 +378,7 @@ def test_task_condition_implicit_dependence_loop(tmp_path):
 
     wk = hf.Workflow.from_template_data(
         template_name="test_conditional_tasks",
-        # path=tmp_path,
+        path=tmp_path,
         config={"log_file_level": "debug"},
         resources={"any": {"write_app_logs": True}},
         tasks=[
