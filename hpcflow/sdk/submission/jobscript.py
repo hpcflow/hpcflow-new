@@ -1601,7 +1601,9 @@ class Jobscript(JSONLike):
             )
             out += run_cmd + "\n"
         else:
-            run_cmd = shell.JS_RUN_CMD.format(
+            run_cmd = shell.JS_APP_START_TIMER.format(
+                app_caps=app_caps
+            ) + shell.JS_RUN_CMD.format(
                 workflow_app_alias=self.workflow_app_alias,
                 timeit="--timeit " if self.submission.timeit else "",
                 app_caps=app_caps,

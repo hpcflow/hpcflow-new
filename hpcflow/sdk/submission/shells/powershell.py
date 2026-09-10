@@ -105,9 +105,14 @@ class WindowsPowerShell(Shell):
     JS_RUN_LOG_PATH_ENABLE: ClassVar[str] = 'Join-Path $SUB_LOG_DIR "{run_log_file_name}"'
     #: Template for disabling writing of the app log.
     JS_RUN_LOG_PATH_DISABLE: ClassVar[str] = '" "'
+    #: Template for recording the app launch start time:
+    JS_APP_START_TIMER: ClassVar[str] = dedent(
+        """\
+        $env:{app_caps}_APP_LAUNCH_START = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.ffffffZ')
+    """
+    )
     #: Template for the run execution command.
     JS_RUN_CMD: ClassVar[str] = (
-        "$env:{app_caps}_APP_LAUNCH_START = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.ffffffZ')\n"
         "{workflow_app_alias} {timeit}internal workflow $WK_PATH execute-run "
         "$SUB_IDX $JS_IDX $block_idx $block_act_idx $EAR_ID\n"
     )
