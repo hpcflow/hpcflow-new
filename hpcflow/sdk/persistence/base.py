@@ -1085,7 +1085,9 @@ class PersistentStore(
         self._use_cache = False
         self._reset_cache()
 
-        self._use_parameters_metadata_cache: bool = False  # subclass-specific cache
+        # subclass-specific caches:
+        self._use_parameters_metadata_cache: bool = False
+        self._use_parameters_array_cache: bool = False
 
     def _ensure_all_encoders(self):
         """Ensure app-defined encoders are included in the StoreParameter's encoders

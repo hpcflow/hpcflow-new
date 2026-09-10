@@ -3961,6 +3961,7 @@ class Workflow(AppAware):
             with (
                 self.batch_update(),
                 self._store.parameters_metadata_cache(),
+                self._store.parameters_array_cache(),
                 self._store.cache_ctx(),
             ):
                 exceptions, submitted_js = self._submit(

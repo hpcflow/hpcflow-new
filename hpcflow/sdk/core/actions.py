@@ -3587,18 +3587,20 @@ class Action(JSONLike):
         # `get_py_script_func_kwargs`)
         py_main_block_workflow_load = dedent(
             """\
-                with TimeIt("script.setup"):
+                with TimeIt("script.load_workflow"):
                     app.load_config(
                         overrides={{"log_file_path": Path(log_path)}},
                         config_dir=r"{cfg_dir}",
                         config_key=r"{cfg_invoc_key}",
                     )
                     wk = app.Workflow(wk_path)
-                    EAR = wk.get_EARs_from_IDs([run_id])[0]
-                    run_std_preamble = EAR.get_run_std_preamble()
-                    run_std.preamble = run_std_preamble
-                    if TimeIt.active:
-                        TimeIt.file_preamble = run_std_preamble
+                with wk._store.cache_ctx():
+                    with TimeIt("script.load_run"):
+                        EAR = wk.get_EARs_from_IDs([run_id])[0]
+                        run_std_preamble = EAR.get_run_std_preamble()
+                        run_std.preamble = run_std_preamble
+                        if TimeIt.active:
+                            TimeIt.file_preamble = run_std_preamble
             """
         ).format(
             cfg_dir=self._app.config.config_directory,
@@ -3611,21 +3613,22 @@ class Action(JSONLike):
 
         func_kwargs_str = dedent(
             """\
-            with TimeIt("script.prepare_inputs"):
-                blk_act_key = (
-                    os.environ["{app_caps}_JS_IDX"],
-                    os.environ["{app_caps}_BLOCK_IDX"],
-                    os.environ["{app_caps}_BLOCK_ACT_IDX"],
-                )
-                with (
-                    EAR.raise_on_failure_threshold() as unset_params,
-                    wk._store.parameters_metadata_cache(),
-                ):
-                    func_kwargs = EAR.get_py_script_func_kwargs(
-                        raise_on_unset=False,
-                        add_script_files=True,
-                        blk_act_key=blk_act_key,
+                with TimeIt("script.prepare_inputs"):
+                    blk_act_key = (
+                        os.environ["{app_caps}_JS_IDX"],
+                        os.environ["{app_caps}_BLOCK_IDX"],
+                        os.environ["{app_caps}_BLOCK_ACT_IDX"],
                     )
+                    with (
+                        EAR.raise_on_failure_threshold() as unset_params,
+                        wk._store.parameters_metadata_cache(),
+                        wk._store.parameters_array_cache(),
+                    ):
+                        func_kwargs = EAR.get_py_script_func_kwargs(
+                            raise_on_unset=False,
+                            add_script_files=True,
+                            blk_act_key=blk_act_key,
+                        )
         """
         ).format(app_caps=app_caps)
 

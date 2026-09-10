@@ -329,6 +329,10 @@ class JSONPersistentStore(
                 self._use_parameters_metadata_cache = False
                 self._parameters_file_dat = None  # clear cache data
 
+    @contextmanager
+    def parameters_array_cache(self) -> Iterator[None]:
+        yield
+
     def remove_replaced_dir(self) -> None:
         """
         Remove the directory containing replaced workflow details.

@@ -660,6 +660,8 @@ class ZarrPersistentStore(
         self._parameter_sources_zarr_array = None
         self._parameter_sources_array = None
         self._parameter_sources_cached_chunks.clear()
+
+    def _reset_parameters_array_cache(self):
         self._parameter_data_array_group = None
 
     @contextmanager
@@ -677,23 +679,42 @@ class ZarrPersistentStore(
                 self._use_parameters_metadata_cache = False
                 self._reset_parameters_metadata_cache()
 
+    @contextmanager
+    def parameters_array_cache(self) -> Iterator[None]:
+        """Context manager for the using the parameters-array cache, which here means
+        caching the (existence of) Zarr array sub-groups within the parameter/arrays
+        group."""
+        if self._use_parameters_array_cache:
+            yield
+        else:
+            self._use_parameters_array_cache = True
+            self._reset_parameters_array_cache()
+            try:
+                yield
+            finally:
+                self._use_parameters_array_cache = False
+                self._reset_parameters_array_cache()
+
     @TimeIt.decorator
-    def get_parameter_data_array_group(self, parameter_idx: int) -> dict[int, Group]:
-        if self._use_parameters_metadata_cache:
+    def get_parameter_data_array_group(self, parameter_idx: int) -> Group | None:
+        if self._use_parameters_array_cache:
             if self._parameter_data_array_group is None:
-                # add just keys to the cache first
+                # populate known group names, but lazily open the groups themselves.
                 self._parameter_data_array_group = dict.fromkeys(
                     self._get_parameter_user_array_group().keys()
                 )
-            if (
-                key := self._param_data_arr_grp_name(parameter_idx)
-            ) not in self._parameter_data_array_group:
-                # no array group exists for this parameter
+
+            key = self._param_data_arr_grp_name(parameter_idx)
+            if key not in self._parameter_data_array_group:
+                # no array group exists for this parameter.
                 return None
-            else:
+
+            if self._parameter_data_array_group[key] is None:
+                # populate the cache:
                 self._parameter_data_array_group[key] = (
                     self._get_parameter_data_array_group(parameter_idx)
                 )
+
             return self._parameter_data_array_group[key]
 
         return self._get_parameter_data_array_group(parameter_idx)
@@ -1583,11 +1604,6 @@ class ZarrPersistentStore(
         # the `decode` call in `_get_persistent_parameters` should be quick:
         params = self._get_persistent_parameters(param_ids)
         param_encode_root_group = self._get_parameter_user_array_group(mode="r+")
-
-        if self._use_parameters_metadata_cache:
-            # invalidate cache, because the data array groups might be added to
-            self._parameter_data_array_group = None
-
         param_updates = defaultdict(list)
         for param_id, (value, is_file) in set_parameters.items():
             param_i = params[param_id]
