@@ -325,7 +325,7 @@ class Bash(Shell):
         stderr: bool,
         app_name: str,
         timeit: bool,
-    ):
+    ) -> str:
         """
         Produce code to save a parameter's value into the workflow persistent store.
         """

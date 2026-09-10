@@ -1367,6 +1367,10 @@ class PersistentStore(
         """
         yield
 
+    @contextlib.contextmanager
+    def parameters_array_cache(self):
+        yield
+
     @staticmethod
     def prepare_test_store_from_spec(
         task_spec: Sequence[
@@ -1711,14 +1715,14 @@ class PersistentStore(
     @TimeIt.decorator
     def add_element_iterations(
         self,
-        element_IDs: list[int],
-        data_idx_all: list[DataIndex],
-        schema_parameters_all: list[list[str]],
+        element_IDs: Sequence[int],
+        data_idx_all: Sequence[DataIndex],
+        schema_parameters_all: Sequence[list[str]],
         task_ID: int,
         index: int,
-        loop_idx_all: list[Mapping[str, int]] | None = None,
+        loop_idx_all: Sequence[Mapping[str, int]] | None = None,
         save: bool = True,
-    ) -> int:
+    ) -> list[int]:
         """Add a new iteration to multiple elements."""
         self.logger.debug("Adding store element-iteration.")
 
@@ -1726,7 +1730,7 @@ class PersistentStore(
         num_new = len(element_IDs)
         new_IDs = list(range(next_ID, next_ID + num_new))
         if loop_idx_all is None:
-            loop_idx_all = [None] * num_new
+            loop_idx_all = [{} for _ in range(num_new)]
 
         for id_i, elem_ID, data_idx, schema_params, loop_idx in zip(
             new_IDs,
@@ -2287,7 +2291,7 @@ class PersistentStore(
     @TimeIt.decorator
     def __split_pending(
         ids: Iterable[int], all_pending: Mapping[int, Any]
-    ) -> tuple[tuple[int, ...], set[int], set[int]]:
+    ) -> tuple[tuple[int, ...], tuple[int, ...], tuple[int, ...]]:
         id_all = tuple(ids)
         if len(id_all) == 1:
             id_ = id_all[0]
@@ -2307,7 +2311,7 @@ class PersistentStore(
             else:
                 id_pers.append(id_)
 
-        return id_all, id_pers, id_pend
+        return id_all, tuple(id_pers), tuple(id_pend)
 
     @abstractmethod
     def _get_persistent_tasks(self, id_lst: Iterable[int]) -> dict[int, AnySTask]: ...
@@ -2594,7 +2598,12 @@ class PersistentStore(
             (
                 updates["submission_idx"],
                 updates["commands_file_ID"],
-            ) = self._pending.set_EAR_submission_data.get(EAR_i.id_, (None, None))
+                updates["run_file_ID"],
+                updates["run_file_idx"],
+            ) = self._pending.set_EAR_submission_data.get(
+                EAR_i.id_,
+                (None, None, None, None),
+            )
             (
                 updates["start_time"],
                 updates["snapshot_start"],

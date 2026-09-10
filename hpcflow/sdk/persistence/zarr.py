@@ -10,7 +10,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast, TYPE_CHECKING
-import msgpack
+import msgpack  # type: ignore[import-untyped]
 from typing_extensions import override
 import shutil
 import time
@@ -445,12 +445,15 @@ class ZarrStoreEAR(StoreEAR[ListAny, ZarrAttrs]):
     def _encode_run_time_metadata(self, ts_fmt: str):
         """Run metadata that is generated at the start or end of a run's execution."""
         return self.encode_run_time_metadata(
-            {name: getattr(self, name) for name in self.EXEC_TIME_ATTRIBUTES},
+            {
+                idx: getattr(self, name)
+                for idx, name in enumerate(self.EXEC_TIME_ATTRIBUTES)
+            },
             ts_fmt=ts_fmt,
         )
 
     @classmethod
-    def encode_run_time_metadata(cls, data: dict[str, Any], ts_fmt: str) -> list[Any]:
+    def encode_run_time_metadata(cls, data: dict[int, Any], ts_fmt: str) -> list[Any]:
         out = [data.get(idx) for idx in range(len(cls.EXEC_TIME_ATTRIBUTES))]
         start_idx = cls.EXEC_TIME_ATTRIBUTES.index("start_time")
         end_idx = cls.EXEC_TIME_ATTRIBUTES.index("end_time")
@@ -469,10 +472,10 @@ class ZarrStoreEAR(StoreEAR[ListAny, ZarrAttrs]):
     @override
     @classmethod
     @TimeIt.decorator
-    def decode(
+    def decode(  # type: ignore[override]
         cls,
         EAR_dat: ListAny,
-        sub_dat: ListAny,
+        sub_dat: Sequence[Any],
         run_time_dat: ListAny | None,
         ts_fmt: str,
         attrs: ZarrAttrs,
@@ -1497,8 +1500,10 @@ class ZarrPersistentStore(
         """Update execution-time metadata for existing runs."""
 
         run_file_lookup = self._get_run_file_lookup(updates)
-
-        run_exec_data = defaultdict(lambda: defaultdict(dict))
+        run_exec_data: defaultdict[
+            int,
+            defaultdict[int, dict[int, dict[int, Any]]],
+        ] = defaultdict(lambda: defaultdict(dict))
 
         for submission_idx, files in run_file_lookup.items():
             for file_ID, indices in files.items():
@@ -1530,9 +1535,10 @@ class ZarrPersistentStore(
 
     @TimeIt.decorator
     def _update_EAR_submission_data(
-        self, sub_data: Mapping[int, tuple[int, int | None, int]]
+        self,
+        sub_data: Mapping[int, tuple[int, int | None, int, int]],
     ):
-        sub_data = {
+        encoded_sub_data = {
             run_ID: (
                 sub_idx,
                 (
@@ -1548,14 +1554,16 @@ class ZarrPersistentStore(
 
         arr = self._get_EARs_sub_dat_arr(mode="r+")
 
-        required_size = max(sub_data) + 1
+        required_size = max(encoded_sub_data) + 1
         if required_size > arr.shape[0]:
             arr.resize(required_size)
 
-        sub_run_IDs = np.fromiter(sub_data, dtype=np.uint32, count=len(sub_data))
+        sub_run_IDs = np.fromiter(
+            encoded_sub_data, dtype=np.uint32, count=len(encoded_sub_data)
+        )
         sub_dat_values = np.empty(len(sub_run_IDs), dtype=self._RUN_SUB_DAT_DTYPE)
         for i, run_ID in enumerate(sub_run_IDs):
-            sub_dat_values[i] = sub_data[int(run_ID)]
+            sub_dat_values[i] = encoded_sub_data[int(run_ID)]
 
         arr.set_coordinate_selection((sub_run_IDs,), sub_dat_values)
 
@@ -1752,7 +1760,10 @@ class ZarrPersistentStore(
         # file zero is for local inputs, hence the offset from the run metadata file IDs:
         run_file_lookup = self._get_run_file_lookup(param_updates, file_offset=1)
 
-        param_out_data = defaultdict(lambda: defaultdict(dict))
+        param_out_data: defaultdict[
+            int,
+            defaultdict[int, dict[tuple[int, int], Any]],
+        ] = defaultdict(lambda: defaultdict(dict))
         for submission_idx, files in run_file_lookup.items():
             for file_ID, indices in files.items():
                 for run_id, run_idx in indices.items():
@@ -1917,7 +1928,9 @@ class ZarrPersistentStore(
     def _get_array_group_and_dataset(
         self, mode: str, param_id: int, data_path: list[int]
     ):
-        base_dat = self._get_base_parameters([param_id])[param_id]
+        base_params, _ = self._get_base_parameters([param_id])
+        base_dat = base_params[param_id]
+
         for arr_dat_path, arr_idx in base_dat["type_lookup"]["arrays"]:
             if arr_dat_path == data_path:
                 break
@@ -2187,10 +2200,13 @@ class ZarrPersistentStore(
     @TimeIt.decorator
     def _get_run_submission_metadata(
         self, id_lst: Iterable[int]
-    ) -> dict[int, tuple[int | None, ...]]:
+    ) -> dict[int, tuple[int | None, int | None, int | None, int | None]]:
         """Get the run file IDs for the provided runs."""
         runs, id_lst = self._get_cached_persistent_EARs(id_lst)
-        sub_dat = {
+        sub_dat: dict[
+            int,
+            tuple[int | None, int | None, int | None, int | None],
+        ] = {
             id_i: (
                 run_i.submission_idx,
                 run_i.commands_file_ID,
@@ -2245,7 +2261,7 @@ class ZarrPersistentStore(
     def read_run_files(
         self,
         run_file_lookup: dict[int, dict[int, dict[int, int]]],
-    ):
+    ) -> dict[int, list[Any] | None]:
         """
         Parameters
         ----------
@@ -2254,7 +2270,7 @@ class ZarrPersistentStore(
             mapping run IDs to indices within those files.
         """
 
-        data = {}
+        data: dict[int, list[Any] | None] = {}
 
         for submission_idx, files in run_file_lookup.items():
             prefix = self._get_run_multi_dir_path(submission_idx)
@@ -2369,8 +2385,8 @@ class ZarrPersistentStore(
     @TimeIt.decorator
     def read_param_files(
         self,
-        run_file_lookup: dict[int, dict[int, dict[int, tuple[int, int]]]],
-    ):
+        run_file_lookup: Mapping[int, Mapping[int, Mapping[int, tuple[int, int]]]],
+    ) -> dict[int, Any | None]:
         """
         Parameters
         ----------
@@ -2380,7 +2396,7 @@ class ZarrPersistentStore(
             within
         """
 
-        data = {}
+        data: dict[int, Any | None] = {}
         for submission_idx, files in run_file_lookup.items():
             for file_ID, indices in files.items():
                 params = self._get_param_file_data(submission_idx, file_ID)
@@ -2453,15 +2469,20 @@ class ZarrPersistentStore(
     def _get_run_file_lookup(
         self,
         id_lst: Iterable[int],
-        submission_metadata: dict[int, tuple[int | None, ...]] | None = None,
+        submission_metadata: Mapping[int, tuple[int | None, ...]] | None = None,
         file_offset: int = 0,
-        keys: Iterable[int] | None = None,
     ) -> dict[int, dict[int, dict[int, int]]]:
-        sub_dat = submission_metadata or self._get_run_submission_metadata(id_lst)
+        sub_dat = (
+            submission_metadata
+            if submission_metadata is not None
+            else self._get_run_submission_metadata(id_lst)
+        )
 
-        run_file_lookup = defaultdict(lambda: defaultdict(dict))
-
-        for idx, (run_id, sub_dat_i) in enumerate(sub_dat.items()):
+        run_file_lookup: defaultdict[
+            int,
+            defaultdict[int, dict[int, int]],
+        ] = defaultdict(lambda: defaultdict(dict))
+        for run_id, sub_dat_i in sub_dat.items():
             submission_idx = sub_dat_i[0]
             file_ID = sub_dat_i[2]
             file_idx = sub_dat_i[3]
@@ -2472,12 +2493,14 @@ class ZarrPersistentStore(
             assert submission_idx is not None
             assert file_idx is not None
 
-            locator = (int(file_idx), keys[idx]) if keys is not None else int(file_idx)
             run_file_lookup[int(submission_idx)][int(file_ID) + file_offset][
                 int(run_id)
-            ] = locator
+            ] = int(file_idx)
 
-        return run_file_lookup
+        return {
+            submission_idx: {file_ID: dict(indices) for file_ID, indices in files.items()}
+            for submission_idx, files in run_file_lookup.items()
+        }
 
     @TimeIt.decorator
     def _get_persistent_EARs(self, id_lst: Iterable[int]) -> dict[int, ZarrStoreEAR]:
@@ -2548,7 +2571,10 @@ class ZarrPersistentStore(
         src_run_ids = [param_id_to_run_id[param_id] for param_id in output_param_ids]
         submission_metadata = self._get_run_submission_metadata(src_run_ids)
 
-        param_file_lookup = defaultdict(lambda: defaultdict(dict))
+        param_file_lookup: defaultdict[
+            int,
+            defaultdict[int, dict[int, tuple[int, int]]],
+        ] = defaultdict(lambda: defaultdict(dict))
         for param_id in output_param_ids:
             src_run_id = param_id_to_run_id[param_id]
             sub_dat_i = submission_metadata[src_run_id]
@@ -2559,6 +2585,9 @@ class ZarrPersistentStore(
 
             if file_ID is None:
                 continue
+
+            assert submission_idx is not None
+            assert file_idx is not None
 
             param_file_lookup[int(submission_idx)][int(file_ID) + 1][int(param_id)] = (
                 int(file_idx),

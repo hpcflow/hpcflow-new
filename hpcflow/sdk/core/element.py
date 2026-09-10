@@ -1370,7 +1370,7 @@ class ElementIteration(AppAware):
             resources.setdefault("os_name", ER.get_default_os_name())
             resources.setdefault("shell", ER.get_default_shell())
             if "scheduler" not in resources:
-                resources["scheduler"] = ER.get_default_scheduler(
+                resources["scheduler"] = ER.get_default_scheduler(  # type: ignore[misc]
                     resources["os_name"], resources["shell"]
                 )
             resources.setdefault("platform", ER.get_default_platform())

@@ -47,7 +47,7 @@ class TimeIt:
     #: Title to be printed with the summary.
     title: ClassVar[str | None] = None
     #: Where to log to.
-    file_path: ClassVar[str | None] = None
+    file_path: ClassVar[str | Path | None] = None
     #: The details be tracked.
     timers: ClassVar[dict[tuple[str, ...], list[float]]] = defaultdict(list)
     #: Traces of the stack.
@@ -82,10 +82,6 @@ class TimeIt:
         self.name = name
         self._tic: float | None = None
         self._trace_key: tuple[str, ...] | None = None
-
-    def __enter__(self):
-        self.__class__.active = True
-        return self
 
     def __enter__(self):
         cls = self.__class__
@@ -382,13 +378,13 @@ class TimeIt:
                     depth_final_next.append(is_final_child)
                 _format_nodes(v.children, depth + 1, depth_final_next)
 
-        summary = cls._summarise()
+        timing_summary = cls._summarise()
 
         out = [
             f"{'function':^80s} {'sum /ms':^12s} {'mean (stddev) /ms':^20s} {'N':^8s} "
             f"{'min /ms':^12s} {'max /ms':^12s}"
         ]
-        _format_nodes(summary)
+        _format_nodes(timing_summary)
         out_str = "\n".join(out) + "\n"
 
         CLI_time = None
@@ -401,41 +397,47 @@ class TimeIt:
         total_orchestration_time = cls.get_total_orchestration_time()
         total_time = cls.get_total_time()
 
-        summary = []
+        summary_lines: list[str] = []
         if cls.title:
-            summary.append(f"{cls.title}\n{'=' * len(cls.title)}")
+            summary_lines.append(f"{cls.title}\n{'=' * len(cls.title)}")
 
         if cls.app_launch_time is not None:
-            summary.append(f"App launch time:          {cls.app_launch_time:.6f} s")
+            summary_lines.append(f"App launch time:          {cls.app_launch_time:.6f} s")
 
         if CLI_time is not None:
-            summary.append(f"CLI time:                 {CLI_time:.6f} s")
+            summary_lines.append(f"CLI time:                 {CLI_time:.6f} s")
 
         if cls.run_command_time is not None:
-            summary.append(f"Command time:             {cls.run_command_time:.6f} s")
+            summary_lines.append(
+                f"Command time:             {cls.run_command_time:.6f} s"
+            )
 
         if command_work_time is not None:
-            summary.append(f"Command work time:        {command_work_time:.6f} s")
+            summary_lines.append(f"Command work time:        {command_work_time:.6f} s")
 
         if command_overhead_time is not None:
-            summary.append(f"Command overhead time:    {command_overhead_time:.6f} s")
+            summary_lines.append(
+                f"Command overhead time:    {command_overhead_time:.6f} s"
+            )
 
         if orchestration_time is not None:
-            summary.append(f"Orchestration time:       {orchestration_time:.6f} s")
+            summary_lines.append(f"Orchestration time:       {orchestration_time:.6f} s")
 
         if cls.child_orchestration_time:
-            summary.append(
+            summary_lines.append(
                 f"Child orchestration time: {cls.child_orchestration_time:.6f} s"
             )
 
         if total_orchestration_time is not None:
-            summary.append(f"Total orchestration time: {total_orchestration_time:.6f} s")
+            summary_lines.append(
+                f"Total orchestration time: {total_orchestration_time:.6f} s"
+            )
 
         if total_time is not None:
-            summary.append(f"Total time:               {total_time:.6f} s")
+            summary_lines.append(f"Total time:               {total_time:.6f} s")
 
-        if summary:
-            out_str = "\n".join(summary) + "\n\n" + out_str
+        if summary_lines:
+            out_str = "\n".join(summary_lines) + "\n\n" + out_str
 
         if cls.file_path:
             path = Path(cls.file_path)

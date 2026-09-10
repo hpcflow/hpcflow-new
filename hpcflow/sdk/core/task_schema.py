@@ -845,8 +845,8 @@ class TaskSchema(JSONLike):
         end up with a index slot for that output parameter even though it is not actually
         an output of the action, and so no slot is required."""
 
-        out_indices = defaultdict(dict)
-        schema_output_actions = {}
+        out_indices: defaultdict[int, dict[str, int]] = defaultdict(dict)
+        schema_output_actions: dict[str, int] = {}
         for param, src_sink in self.get_action_parameter_flow().items():
             if out_acts := set(src_sink["sources"]) - {-1}:  # -1 indicates schema input
                 for act_idx in out_acts:

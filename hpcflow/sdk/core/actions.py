@@ -837,6 +837,7 @@ class ElementActionRun(AppAware):
         )
 
     def get_app_std_path(self) -> Path:
+        assert self.submission_idx is not None
         std_dir = Submission.get_app_std_path(
             self.workflow.submissions_path,
             self.submission_idx,

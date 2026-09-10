@@ -283,7 +283,7 @@ def test_zarr_rechunk_data_equivalent(tmp_path: Path):
     wk.submit(wait=True, status=False, add_to_known=False)
     wk.rechunk_runs(backup=True, status=False, chunk_size=None)  # None -> one chunk
 
-    arr = cast("ZarrPersistentStore", wk._store)._get_EARs_task_array(0)
+    arr = cast("ZarrPersistentStore", wk._store)._get_EARs_task_array(0)  # type: ignore[attr-defined]
     assert arr.chunks == arr.shape
 
     bak_path = (Path(arr.store.path) / arr.path).with_suffix(".bak")
@@ -315,7 +315,7 @@ def test_zarr_rechunk_data_equivalent_custom_chunk_size(tmp_path: Path):
     wk.submit(wait=True, status=False, add_to_known=False)
     wk.rechunk_runs(backup=True, status=False, chunk_size=(2, 2, 1, 2))
 
-    arr = cast("ZarrPersistentStore", wk._store)._get_EARs_task_array(0)
+    arr = cast("ZarrPersistentStore", wk._store)._get_EARs_task_array(0)  # type: ignore[attr-defined]
     assert arr.chunks == (2, 2, 1, 2)  # (elem, elem, iter, act)
 
     bak_path = (Path(arr.store.path) / arr.path).with_suffix(".bak")
@@ -344,7 +344,7 @@ def test_zarr_rechunk_data_no_backup_load_runs(tmp_path: Path):
     wk.submit(wait=True, status=False, add_to_known=False)
     wk.rechunk_runs(backup=False, status=False)
 
-    arr = cast("ZarrPersistentStore", wk._store)._get_EARs_task_array(0)
+    arr = cast("ZarrPersistentStore", wk._store)._get_EARs_task_array(0)  # type: ignore[attr-defined]
 
     bak_path = (Path(arr.store.path) / arr.path).with_suffix(".bak")
     assert not bak_path.is_file()
@@ -379,7 +379,7 @@ def test_zarr_rechunk_data_no_backup_load_parameter_base(tmp_path: Path):
     params_new = wk.get_all_parameter_data()
     assert params_new == params_old
 
-    arr = cast("ZarrPersistentStore", wk._store)._get_parameter_base_array()
+    arr = cast("ZarrPersistentStore", wk._store)._get_parameter_base_array()  # type: ignore[attr-defined]
 
     bak_path = (Path(arr.store.path) / arr.path).with_suffix(".bak")
     assert not bak_path.is_file()

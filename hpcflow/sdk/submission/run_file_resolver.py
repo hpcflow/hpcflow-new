@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from numbers import Integral
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast, overload
 
 import numpy as np
 
@@ -15,20 +15,37 @@ if TYPE_CHECKING:
 # TODO: might make sense to have a maximum size (number of indices) within the run file
 
 
+@overload
+def get_run_multi_chunk_path(
+    idx: int,
+    prefix: Path | None,
+    max_per_dir: int = 1000,
+) -> Path: ...
+
+
+@overload
+def get_run_multi_chunk_path(
+    idx: Sequence[int],
+    prefix: Path | None,
+    max_per_dir: int = 1000,
+) -> list[Path]: ...
+
+
 def get_run_multi_chunk_path(
     idx: int | Sequence[int], prefix: Path | None, max_per_dir: int = 1000
 ) -> Path | list[Path]:
 
-    prefix = prefix or Path()
+    prefix_ = prefix or Path()
 
-    def get_one(idx: int, prefix: Path | None) -> Path:
-        directory, filename = divmod(idx, max_per_dir)
-        return prefix / str(directory) / str(filename)
+    def get_one(idx_: int) -> Path:
+        directory, filename = divmod(idx_, max_per_dir)
+        return prefix_ / str(directory) / str(filename)
 
     if isinstance(idx, Integral):
-        return get_one(idx, prefix)
+        return get_one(int(idx))
 
-    return [get_one(idx_i, prefix) for idx_i in idx]
+    idx_seq = cast("Sequence[int]", idx)
+    return [get_one(int(idx_i)) for idx_i in idx_seq]
 
 
 @dataclass(frozen=True)

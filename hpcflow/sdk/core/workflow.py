@@ -4860,6 +4860,7 @@ class Workflow(AppAware):
         # this subprocess may include commands that redirect to the std_stream file (e.g.
         # calling the app to save a parameter from a shell command output):
         if not run.skip and has_commands:
+            assert exe is not None
             if TimeIt.active:
                 t_cmd_start = time.perf_counter()
             ret_code = exe.run()  # this also shuts down the server

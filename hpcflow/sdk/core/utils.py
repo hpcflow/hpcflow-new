@@ -1045,7 +1045,7 @@ def dict_values_process_flat(
 
     processed = callable(flat)
 
-    out = {}
+    out: dict[T, T3 | list[T3]] = {}
     offset = 0
 
     for key, length in zip(d, lengths):

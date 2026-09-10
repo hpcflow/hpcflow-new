@@ -244,7 +244,7 @@ class Submission(JSONLike):
         return self._index
 
     @property
-    def timeit(self) -> int:
+    def timeit(self) -> bool:
         """
         Whether to time run execution function pathways as the code executes and write
         out a summary to the app-std file. Only functions decorated by `TimeIt.decorator`

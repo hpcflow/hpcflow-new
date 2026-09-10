@@ -77,22 +77,32 @@ def add_import_timing(py_str: str) -> str:
         and isinstance(body[0].value, ast.Constant)
         and isinstance(body[0].value.value, str)
     ):
-        start_line = body[0].end_lineno
+        doc_stmt = body[0]
+        assert doc_stmt.end_lineno is not None
+        start_line = doc_stmt.end_lineno
         idx = 1
 
     # __future__ imports
-    while (
-        idx < len(body)
-        and isinstance(body[idx], ast.ImportFrom)
-        and body[idx].module == "__future__"
-    ):
-        start_line = body[idx].end_lineno
+    while idx < len(body):
+        future_stmt = body[idx]
+        if not isinstance(future_stmt, ast.ImportFrom):
+            break
+        if future_stmt.module != "__future__":
+            break
+
+        assert future_stmt.end_lineno is not None
+        start_line = future_stmt.end_lineno
         idx += 1
 
     # User imports
     import_end_line = start_line
-    while idx < len(body) and isinstance(body[idx], (ast.Import, ast.ImportFrom)):
-        import_end_line = body[idx].end_lineno
+    while idx < len(body):
+        import_stmt = body[idx]
+        if not isinstance(import_stmt, (ast.Import, ast.ImportFrom)):
+            break
+
+        assert import_stmt.end_lineno is not None
+        import_end_line = import_stmt.end_lineno
         idx += 1
 
     lines = py_str.splitlines(keepends=True)

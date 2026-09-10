@@ -2682,8 +2682,8 @@ class WorkflowTask(AppAware):
             src_idx,
         )
 
-        seq_idx_all: list[dict[str, list[int]]] = []
-        src_idx_all: list[dict[str, list[int]]] = []
+        seq_idx_all: list[dict[str, int]] = []
+        src_idx_all: list[dict[str, int]] = []
         schema_params_all: list[list[str]] = []
         for elem_idx, data_idx in enumerate(element_data_idx):
             schema_params_all.append(
