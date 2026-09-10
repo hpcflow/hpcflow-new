@@ -809,6 +809,7 @@ class ZarrPersistentStore(
             dtype=object,
             object_codec=VLenArray(int),
             compressor=cmp,
+            chunks=100,
         )
 
         elems_arr = md.create_dataset(
