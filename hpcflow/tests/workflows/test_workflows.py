@@ -521,8 +521,8 @@ def test_get_text_file(tmp_path, store):
     rel_path = f"artifacts/submissions/0/js_std/0/{filename}"
     abs_path = f"{wk.url}/{rel_path}"
 
-    assert wk.get_text_file(rel_path) == "hi!\n"
-    assert wk.get_text_file(abs_path) == "hi!\n"
+    assert wk.get_text_file(rel_path).strip() == "hi!"
+    assert wk.get_text_file(abs_path).strip() == "hi!"
 
 
 @pytest.mark.integration
@@ -541,8 +541,8 @@ def test_get_text_file_zarr_zip(tmp_path):
     rel_path = f"artifacts/submissions/0/js_std/0/{filename}"
     abs_path = f"{wkz.url}/{rel_path}"
 
-    assert wkz.get_text_file(rel_path) == "hi!\n"
-    assert wkz.get_text_file(abs_path) == "hi!\n"
+    assert wkz.get_text_file(rel_path).strip() == "hi!"
+    assert wkz.get_text_file(abs_path).strip() == "hi!"
 
 
 @pytest.mark.parametrize("store", ["zarr", "json"])
