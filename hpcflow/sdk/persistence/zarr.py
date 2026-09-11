@@ -789,6 +789,7 @@ class ZarrPersistentStore(
 
         return shard_cache[parameter_name]
 
+    @TimeIt.decorator
     def _get_or_create_parameter_data_array_inner_group(
         self,
         parameter_idx: int,
@@ -1646,6 +1647,56 @@ class ZarrPersistentStore(
                     sub["jobscripts"][js_idx].update(js_meta_i)
 
     @TimeIt.decorator
+    def _create_parameter_array_shards(
+        self, params: Sequence[StoreParameter]
+    ) -> dict[tuple[str, str, str], Group]:
+        """Create parameter-array shards and return their inner groups."""
+
+        # One representative parameter ID per shard.
+        shard_param_ids: dict[tuple[str, str, str], int] = {}
+
+        for param in params:
+            outer_name, mid_name, inner_name, _ = self._param_data_arr_grp_names(
+                param.id_
+            )
+            shard_key = (outer_name, mid_name, inner_name)
+            shard_param_ids.setdefault(shard_key, param.id_)
+
+        if not shard_param_ids:
+            return {}
+
+        root = self._get_parameter_user_array_group(mode="r+")
+
+        current_outer_name = None
+        current_mid_name = None
+        outer_group = None
+        mid_group = None
+
+        shard_groups: dict[tuple[str, str, str], Group] = {}
+
+        # sort by parameter ID so outer/mid groups are traversed monotonically.
+        for shard_key, _ in sorted(
+            shard_param_ids.items(),
+            key=lambda item: item[1],
+        ):
+            outer_name, mid_name, inner_name = shard_key
+
+            if outer_name != current_outer_name:
+                outer_group = root.require_group(outer_name)
+                current_outer_name = outer_name
+                current_mid_name = None
+
+            if mid_name != current_mid_name:
+                assert outer_group is not None
+                mid_group = outer_group.require_group(mid_name)
+                current_mid_name = mid_name
+
+            assert mid_group is not None
+            shard_groups[shard_key] = mid_group.require_group(inner_name)
+
+        return shard_groups
+
+    @TimeIt.decorator
     def _append_parameters(self, params: Sequence[StoreParameter]):
         """Add new persistent parameters."""
         self._ensure_all_encoders()
@@ -1658,31 +1709,20 @@ class ZarrPersistentStore(
         src_enc: list[dict] = []
         local_ins_enc: dict[tuple[int, int], Any] = {}
 
-        current_shard_key = None
-        current_inner_group = None
+        # create every shard now, including those containing unset EAR outputs;
+        # this avoids concurrent shard creation during workflow execution.
+        shard_groups = self._create_parameter_array_shards(params)
 
         with self.__mutate_attrs(src_arr) as attrs:
-
             for param_i in params:
-
-                parameter_name = None
-                if param_i.is_set:
-                    outer_name, mid_name, inner_name, parameter_name = (
-                        self._param_data_arr_grp_names(param_i.id_)
-                    )
-                    shard_key = (outer_name, mid_name, inner_name)
-                    if shard_key != current_shard_key:
-                        current_inner_group = (
-                            self._get_or_create_parameter_data_array_inner_group(
-                                param_i.id_,
-                                mode="r+",
-                            )
-                        )
-                        current_shard_key = shard_key
+                outer_name, mid_name, inner_name, parameter_name = (
+                    self._param_data_arr_grp_names(param_i.id_)
+                )
+                shard_key = (outer_name, mid_name, inner_name)
 
                 dat_i = param_i.encode(
-                    root_group=current_inner_group if param_i.is_set else None,
-                    arr_path=parameter_name,
+                    root_group=shard_groups[shard_key] if param_i.is_set else None,
+                    arr_path=parameter_name if param_i.is_set else None,
                 )
                 param_enc.append(dat_i)
 
@@ -1693,7 +1733,7 @@ class ZarrPersistentStore(
                     local_ins_enc[(0, non_output_idx)] = dat_i
                 elif param_i.is_set:
                     raise RuntimeError(
-                        f"Not expected to append an already-set EAR_output parameter: "
+                        "Not expected to append an already-set EAR_output parameter: "
                         f"{param_i!r}"
                     )
 
