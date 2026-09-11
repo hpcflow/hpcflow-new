@@ -1,4 +1,16 @@
 
+<a name="v0.3.0a5"></a>
+## [v0.3.0a5](https://github.com/hpcflow/hpcflow/compare/v0.3.0a4...v0.3.0a5) - 2026.09.11
+
+### 🐛 Bug Fixes
+
+* race condition in creating zarr array-parameter groups
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.3.0a4"></a>
 ## [v0.3.0a4](https://github.com/hpcflow/hpcflow/compare/v0.3.0a3...v0.3.0a4) - 2026.09.10
 
