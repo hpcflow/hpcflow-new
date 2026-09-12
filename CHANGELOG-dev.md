@@ -1,4 +1,17 @@
 
+<a name="v0.3.0a6"></a>
+## [v0.3.0a6](https://github.com/hpcflow/hpcflow/compare/v0.3.0a5...v0.3.0a6) - 2026.09.12
+
+### ⚡ Performance Improvements
+
+* use store cache_ctx when preparing script inputs to reduce number of base-param file reads
+* add more timers
+
+### 👷 Build changes
+
+* update binary download links file [skip ci]
+
+
 <a name="v0.3.0a5"></a>
 ## [v0.3.0a5](https://github.com/hpcflow/hpcflow/compare/v0.3.0a4...v0.3.0a5) - 2026.09.11
 
