@@ -2403,6 +2403,7 @@ class ZarrPersistentStore(
                 encoded = msgpack.packb(runs)
                 atomic_write(path, encoded)
 
+    @TimeIt.decorator
     def _get_param_file_data(
         self, submission_idx: int, file_ID: int
     ) -> list[dict[str, Any]]:
