@@ -701,6 +701,7 @@ class ZarrPersistentStore(
 
     _PARAMETER_ARRAY_INNER_SHARD_SIZE = 500
 
+    @TimeIt.decorator
     def _param_data_arr_grp_names(self, parameter_idx: int) -> tuple[str, str, str, str]:
         inner_size = self._PARAMETER_ARRAY_INNER_SHARD_SIZE
         middle_size = self._PARAMETER_ARRAY_INNER_SHARD_SIZE**2
@@ -717,6 +718,7 @@ class ZarrPersistentStore(
             f"param_{parameter_idx}",
         )
 
+    @TimeIt.decorator
     def _get_parameter_data_array_outer_group(self, parameter_idx: int) -> Group | None:
         outer_name, _, _, _ = self._param_data_arr_grp_names(parameter_idx)
         root = self._get_parameter_user_array_group()
@@ -724,6 +726,7 @@ class ZarrPersistentStore(
             return None
         return root[outer_name]
 
+    @TimeIt.decorator
     def _get_parameter_data_array_mid_group(self, parameter_idx: int) -> Group | None:
         _, mid_name, _, _ = self._param_data_arr_grp_names(parameter_idx)
         outer_group = self._get_parameter_data_array_outer_group(parameter_idx)
@@ -733,6 +736,7 @@ class ZarrPersistentStore(
             return None
         return outer_group[mid_name]
 
+    @TimeIt.decorator
     def _get_parameter_data_array_inner_group(self, parameter_idx: int) -> Group | None:
         _, _, inner_name, _ = self._param_data_arr_grp_names(parameter_idx)
         mid_group = self._get_parameter_data_array_mid_group(parameter_idx)
@@ -742,6 +746,7 @@ class ZarrPersistentStore(
             return None
         return mid_group[inner_name]
 
+    @TimeIt.decorator
     def _get_parameter_data_array_group(self, parameter_idx: int) -> Group | None:
         _, _, _, param_name = self._param_data_arr_grp_names(parameter_idx)
         inner_group = self._get_parameter_data_array_inner_group(parameter_idx)
@@ -769,10 +774,11 @@ class ZarrPersistentStore(
                 self._parameter_data_array_group[shard_key] = None
                 return None
 
-            # only enumerate this <=500-parameter shard:
-            self._parameter_data_array_group[shard_key] = dict.fromkeys(
-                inner_group.keys()
-            )
+            with TimeIt("enumerate_param_data_shard"):
+                # only enumerate this <=500-parameter shard:
+                self._parameter_data_array_group[shard_key] = dict.fromkeys(
+                    inner_group.keys()
+                )
 
         shard_cache = self._parameter_data_array_group[shard_key]
 
@@ -1915,6 +1921,7 @@ class ZarrPersistentStore(
         # avoid reading parent groups multiple times --- if that is happening currently.
         return zarr.open(self.zarr_store, mode=mode, **kwargs)
 
+    @TimeIt.decorator
     def _get_parameter_group(self, mode: str = "r", **kwargs) -> Group:
         return self._get_root_group(mode=mode, **kwargs).get(self._param_grp_name)
 
@@ -2396,6 +2403,7 @@ class ZarrPersistentStore(
                 encoded = msgpack.packb(runs)
                 atomic_write(path, encoded)
 
+    @TimeIt.decorator
     def _get_param_file_data(
         self, submission_idx: int, file_ID: int
     ) -> list[dict[str, Any]]:

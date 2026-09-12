@@ -3622,6 +3622,7 @@ class Action(JSONLike):
                     )
                     with (
                         EAR.raise_on_failure_threshold() as unset_params,
+                        wk._store.cache_ctx(),
                         wk._store.parameters_metadata_cache(),
                         wk._store.parameters_array_cache(),
                     ):
